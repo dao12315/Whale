@@ -1,0 +1,135 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-serif-sc: 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
+    --font-cinzel: 'Cinzel', serif;
+    color-scheme: light dark;
+  }
+  
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  html.light, body.theme-parchment {
+    color-scheme: light;
+    background-color: #f6f3eb;
+    color: #1c1917;
+  }
+
+  html.dark, body.theme-dark {
+    color-scheme: dark;
+    background-color: #0b151a;
+    color: #e2e8f0;
+  }
+}
+
+.font-chinese {
+  font-family: 'Noto Serif SC', 'Songti SC', serif;
+}
+
+.font-cinzel {
+  font-family: 'Cinzel', serif;
+}
+
+/* Custom ink scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.6);
+}
+
+/* Light Parchment Rice-Paper Theme (Default matching screenshots) */
+.theme-parchment {
+  background-color: #f5f2eb;
+  color: #1e293b;
+  background-image: 
+    radial-gradient(ellipse at 50% -10%, rgba(220, 210, 195, 0.7) 0%, transparent 60%),
+    linear-gradient(to bottom, #f7f4ed 0%, #f3eee3 100%);
+}
+
+.theme-parchment .parchment-card {
+  background: #ffffff;
+  border: 1px solid #e7e2d6;
+  box-shadow: 0 2px 8px -2px rgba(44, 39, 32, 0.05);
+}
+
+.theme-parchment .parchment-card:hover {
+  border-color: #d1c7b2;
+  box-shadow: 0 8px 24px -6px rgba(44, 39, 32, 0.1);
+}
+
+/* Dark Mountain Ink Landscape Theme (Toggled by moon icon) */
+.theme-dark {
+  background-color: #0b151a;
+  color: #cbd5e1;
+  background-image: 
+    radial-gradient(ellipse at 50% 0%, rgba(26, 52, 64, 0.45) 0%, rgba(11, 21, 26, 0.95) 75%),
+    linear-gradient(to bottom, rgba(11, 22, 27, 0.75), rgba(11, 21, 26, 0.98)),
+    radial-gradient(circle at 80% 20%, rgba(212, 160, 80, 0.06) 0%, transparent 40%);
+}
+
+.theme-dark .parchment-card {
+  background: linear-gradient(180deg, rgba(20, 36, 44, 0.95) 0%, rgba(14, 26, 32, 0.98) 100%);
+  border: 1px solid rgba(56, 88, 104, 0.35);
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.5);
+}
+
+.theme-dark .parchment-card:hover {
+  border-color: rgba(212, 160, 80, 0.45);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7), 0 0 15px rgba(212, 160, 80, 0.08);
+}
+
+/* Vermilion Chinese Seal Stamp Badge matching Screenshots (卷壹, 卷贰, etc) */
+.seal-stamp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #a82d2d;
+  color: #fffaf0;
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 700;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15), 0 1px 3px rgba(120, 20, 20, 0.3);
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  letter-spacing: 0.1em;
+  padding: 3px 2px;
+}
+
+.seal-stamp-square {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #a82d2d;
+  color: #fffaf0;
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 800;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18), 0 2px 4px rgba(120, 20, 20, 0.35);
+}
+
+.gold-gradient-text {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.theme-dark .gold-gradient-text {
+  background: linear-gradient(135deg, #f9e2af 0%, #d89b3f 50%, #c47c22 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}

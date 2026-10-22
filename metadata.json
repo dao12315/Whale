@@ -1,0 +1,6 @@
+{
+  "name": "一帧山海 - Yizhen Shanhai",
+  "description": "Nền tảng chia sẻ khóa học & tài nguyên sáng tạo với bình luận thời gian thực, quản lý tài khoản và thông báo đẩy.",
+  "requestFramePermissions": ["notifications"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
