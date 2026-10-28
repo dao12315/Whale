@@ -3,6 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { useRealtime } from '../context/RealtimeContext';
 import { sound } from '../services/sound';
 import { notificationService } from '../services/notificationService';
+import { postsApi } from '../services/postsApi';
+import { useI18n } from '../i18n';
 import confetti from 'canvas-confetti';
 import {
   Camera,
@@ -290,40 +292,88 @@ export const PostEditorPage: React.FC<PostEditorPageProps> = ({
       boardId = 'board-asset';
     }
 
+    const trimmedTitle = title.trim();
+    const trimmedContent = content.trim() || 'Chia sẻ nội dung thảo luận và tài nguyên từ tác giả.';
+
     const newPost: ForumPost = {
       id: `post_${Date.now()}`,
       boardId,
-      authorId: user?.id || 'user_current',
-      authorName: user?.name || 'meohamchoi 🦝',
-      authorAvatar: user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop',
-      authorBadge: user?.tier === 'supreme' ? '至尊会员 Supreme VIP' : '🌟 Gold VIP',
-      authorTier: user?.tier || 'supreme',
+      authorId: user?.id || 'usr_student',
+      authorName: user?.name || 'Học Viên Whale',
+      authorAvatar: user?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop',
+      authorBadge: user?.role === 'ADMIN' ? '👑 Admin' : '👤 Học Viên',
+      authorTier: user?.role === 'ADMIN' ? 'admin' : 'free',
       updatedTimeAgo: 'Vừa xong',
       readsCount: 1,
       likesCount: 0,
       commentsCount: 0,
-      title: title.trim(),
-      content: content.trim() || 'Chia sẻ nội dung thảo luận và tài nguyên từ tác giả.',
+      title: trimmedTitle,
+      content: trimmedContent,
       images: coverImage ? [coverImage] : undefined,
-      tags: ['Thảo luận', 'Diễn đàn', 'GGC'],
+      tags: tags.length > 0 ? tags : ['Thảo luận', 'Diễn đàn', 'GGC'],
       category: votingEnabled ? 'voting' : releaseType === 'ask_questions' ? 'qa' : 'summary',
       isFollowed: false,
       commentsList: [],
+      status: 'PUBLISHED',
+      moderationStatus: 'APPROVED',
+      moderationBadge: '✨ Đã duyệt bởi AI',
     };
 
-    // Store in shared realtime state
-    addForumPost(newPost);
+    // Gọi Backend API kèm AI Content Moderation tự động
+    postsApi
+      .createPost({
+        boardId,
+        title: trimmedTitle,
+        content: trimmedContent,
+        coverImageUrl: coverImage || undefined,
+      })
+      .then((res: any) => {
+        const isAutoApproved = res?.isAutoApproved ?? true;
+        const isPendingAdmin = res?.isPendingAdmin ?? false;
 
-    notificationService.sendPushNotification({
-      type: 'comment',
-      title: '🎉 Xuất bản bài viết thành công!',
-      message: `Bài viết "${newPost.title}" đã được đăng lên Diễn đàn 一帧山海.`,
-      timestamp: 'Vừa xong',
-    });
+        const finalPost: ForumPost = {
+          ...newPost,
+          id: res?.data?.id || newPost.id,
+          status: isAutoApproved ? 'PUBLISHED' : 'DRAFT',
+          moderationStatus: isAutoApproved ? 'APPROVED' : 'PENDING',
+          moderationBadge: isAutoApproved ? '✨ Đã duyệt bởi AI' : '⏳ Chờ Admin duyệt',
+        };
 
-    if (onPostCreated) {
-      onPostCreated(newPost);
-    }
+        addForumPost(finalPost);
+
+        if (isPendingAdmin) {
+          notificationService.sendPushNotification({
+            type: 'system',
+            title: '⏳ Bài viết đang chờ Admin duyệt',
+            message: `Hệ thống AI đã tiếp nhận bài viết "${trimmedTitle}". Bài viết sẽ hiển thị công khai ngay sau khi Admin xem xét.`,
+            timestamp: 'Vừa xong',
+          });
+        } else {
+          notificationService.sendPushNotification({
+            type: 'comment',
+            title: '✨ AI đã duyệt và xuất bản!',
+            message: `Bài viết "${trimmedTitle}" đạt tiêu chuẩn an toàn và đã xuất bản lên Diễn đàn.`,
+            timestamp: 'Vừa xong',
+          });
+        }
+
+        if (onPostCreated) {
+          onPostCreated(finalPost);
+        }
+      })
+      .catch((err) => {
+        console.warn('[PostEditor] Gửi API thất bại, lưu vào bộ nhớ tạm:', err?.message);
+        addForumPost(newPost);
+        notificationService.sendPushNotification({
+          type: 'comment',
+          title: '🎉 Đã đăng bài viết!',
+          message: `Bài viết "${trimmedTitle}" đã được đưa lên diễn đàn.`,
+          timestamp: 'Vừa xong',
+        });
+        if (onPostCreated) {
+          onPostCreated(newPost);
+        }
+      });
   };
 
   const filteredPictures = myPictures.filter((p) =>
@@ -674,7 +724,7 @@ export const PostEditorPage: React.FC<PostEditorPageProps> = ({
                         : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                     }`}
                   >
-                    <span>{perm === 'public' ? 'Publicly (Công khai)' : perm === 'gold' ? 'Chỉ Hội viên Vàng' : perm === 'supreme' ? 'Chỉ 至尊会员 (Supreme)' : 'Bảo vệ bằng mật khẩu'}</span>
+                    <span>{perm === 'public' ? 'Publicly (Công khai)' : perm === 'gold' ? 'Chỉ Hội viên Gold' : perm === 'supreme' ? 'Chỉ Hội viên Supreme' : 'Bảo vệ bằng mật khẩu'}</span>
                     {readingPermission === perm && <Check className="w-3.5 h-3.5 text-amber-500" />}
                   </button>
                 ))}

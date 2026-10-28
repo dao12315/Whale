@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronRight, ChevronsRight } from 'lucide-react';
+import { useI18n } from '../i18n';
 
 interface PaginationProps {
   currentPage: number;
@@ -12,6 +13,7 @@ export const Pagination: React.FC<PaginationProps> = ({
   totalPages,
   onPageChange,
 }) => {
+  const { t } = useI18n();
   const [jumpPage, setJumpPage] = useState('');
 
   const handleJump = (e: React.FormEvent) => {
@@ -81,7 +83,7 @@ export const Pagination: React.FC<PaginationProps> = ({
         onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
         className="px-3 h-8 rounded-lg bg-white dark:bg-[#12222b] hover:bg-stone-100 dark:hover:bg-[#1a303d] text-stone-700 dark:text-slate-300 border border-stone-300 dark:border-slate-700/50 flex items-center gap-1 font-medium transition-all shadow-sm"
       >
-        <span>Next page</span>
+        <span>{t('common.next')}</span>
         <ChevronRight className="w-3.5 h-3.5" />
       </button>
 
@@ -91,14 +93,14 @@ export const Pagination: React.FC<PaginationProps> = ({
           type="text"
           value={jumpPage}
           onChange={(e) => setJumpPage(e.target.value)}
-          placeholder="Trang"
+          placeholder={t('common.page')}
           className="w-12 h-8 bg-white dark:bg-[#12222b] text-stone-900 dark:text-slate-200 text-xs rounded-lg px-2 text-center border border-stone-300 dark:border-slate-700/50 focus:border-amber-500 focus:outline-none font-mono shadow-sm"
         />
         <button
           type="submit"
           className="px-2.5 h-8 rounded-lg bg-stone-900 hover:bg-stone-800 text-white dark:bg-[#142935] dark:hover:bg-[#1c3848] dark:text-amber-300 border border-transparent dark:border-amber-500/30 flex items-center gap-1 font-medium transition-all shadow-sm"
         >
-          <span>Jump</span>
+          <span>{t('common.confirm')}</span>
           <ChevronsRight className="w-3.5 h-3.5" />
         </button>
       </form>

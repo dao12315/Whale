@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PushNotification, NotificationType } from '../types';
 import { notificationService } from '../services/notificationService';
+import { usersApi } from '../services/usersApi';
 import {
   Bell,
   MessageSquare,
@@ -38,6 +39,29 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
     setNotifications(list);
     setPermission(notificationService.getPermissionStatus());
     onRefreshUnread();
+
+    // Nạp thông báo từ PostgreSQL Database
+    usersApi
+      .getMyNotifications()
+      .then((res) => {
+        if (res?.data && res.data.length > 0) {
+          const pgNotifs: PushNotification[] = res.data.map((n) => ({
+            id: n.id,
+            type: (n.type === 'ORDER' ? 'group_buy' : n.type.toLowerCase()) as any,
+            title: n.title,
+            message: n.message,
+            timestamp: new Date(n.createdAt).toLocaleDateString('vi-VN'),
+            createdAt: new Date(n.createdAt).getTime(),
+            read: n.isRead,
+          }));
+          setNotifications((prev) => {
+            const existingIds = new Set(prev.map((p) => p.id));
+            const newOnes = pgNotifs.filter((p) => !existingIds.has(p.id));
+            return [...newOnes, ...prev];
+          });
+        }
+      })
+      .catch(() => {});
   };
 
   useEffect(() => {

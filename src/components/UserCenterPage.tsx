@@ -16,8 +16,12 @@ import {
   ThumbsUp,
   Share2,
   Sparkles,
+  CheckCircle2,
 } from 'lucide-react';
 import { sound } from '../services/sound';
+import { useI18n } from '../i18n';
+
+import { usersApi, UserEnrollmentItem } from '../services/usersApi';
 
 interface UserCenterPageProps {
   onBackToHome: () => void;
@@ -32,24 +36,58 @@ export const UserCenterPage: React.FC<UserCenterPageProps> = ({
   onOpenPublish,
   unreadCount,
 }) => {
-  const { user } = useAuth();
+  const { user, addCredits } = useAuth();
   const { courses } = useRealtime();
+  const { t } = useI18n();
 
-  const [activeTab, setActiveTab] = useState<'collection' | 'commentary' | 'section' | 'post' | 'fans'>('collection');
+  const [activeTab, setActiveTab] = useState<'collection' | 'courses' | 'commentary' | 'orders' | 'post' | 'fans'>('courses');
   const [collectionSubTab, setCollectionSubTab] = useState<'article' | 'post'>('article');
   const [sortOption, setSortOption] = useState<'newest' | 'popular'>('newest');
+
+  // Real Database Enrollments & Orders
+  const [myEnrollments, setMyEnrollments] = useState<UserEnrollmentItem[]>([]);
+  const [myOrders, setMyOrders] = useState<any[]>([]);
+  const [isCheckingIn, setIsCheckingIn] = useState(false);
+
+  React.useEffect(() => {
+    if (user) {
+      usersApi.getMyEnrollments().then((res) => {
+        if (res?.data) setMyEnrollments(res.data);
+      }).catch(() => {});
+
+      usersApi.getMyOrders().then((res) => {
+        if (res?.data) setMyOrders(res.data);
+      }).catch(() => {});
+    }
+  }, [user]);
+
+  const handleDailyCheckin = () => {
+    if (isCheckingIn) return;
+    setIsCheckingIn(true);
+    usersApi.checkin().then((res) => {
+      alert(`🎉 ${res?.data?.message || 'Điểm danh thành công!'}`);
+      sound.playSuccess();
+      if (res?.data?.creditsEarned) {
+        addCredits(res.data.creditsEarned);
+      }
+    }).catch((err) => {
+      alert(err?.message || 'Hôm nay bạn đã điểm danh rồi!');
+    }).finally(() => {
+      setIsCheckingIn(false);
+    });
+  };
 
   if (!user) {
     return (
       <div className="max-w-4xl mx-auto py-20 px-4 text-center">
         <p className="text-base text-slate-600 dark:text-slate-300">
-          Please log in to view your User Center.
+          {t('userCenter.login_prompt')}
         </p>
         <button
           onClick={onBackToHome}
           className="mt-4 px-5 py-2 rounded-xl bg-amber-600 text-white font-medium hover:bg-amber-700"
         >
-          Return to Home
+          {t('userCenter.back_to_home')}
         </button>
       </div>
     );
@@ -74,15 +112,15 @@ export const UserCenterPage: React.FC<UserCenterPageProps> = ({
             <div className="flex gap-4">
               {/* Line 1 */}
               <div
-                className="font-chinese text-sm sm:text-base tracking-[0.3em] font-light text-slate-200/90 [writing-mode:vertical-rl]"
+                className="text-xs sm:text-sm tracking-wider font-medium text-slate-200/90 [writing-mode:vertical-rl]"
               >
-                一帧之间，山海为境
+                {t('userCenter.slogan_1')}
               </div>
               {/* Line 2 */}
               <div
-                className="font-chinese text-sm sm:text-base tracking-[0.3em] font-light text-slate-200/90 [writing-mode:vertical-rl]"
+                className="text-xs sm:text-sm tracking-wider font-medium text-slate-200/90 [writing-mode:vertical-rl]"
               >
-                聚山海之势，成一帧之美
+                {t('userCenter.slogan_2')}
               </div>
             </div>
           </div>
@@ -90,8 +128,8 @@ export const UserCenterPage: React.FC<UserCenterPageProps> = ({
           {/* Top Right Badges: Red Seal & Heat 77 & More matching Screenshot 7 & 8 */}
           <div className="absolute top-4 right-4 flex items-center gap-2.5">
             {/* Vermilion Stamp Seal */}
-            <div className="seal-stamp-square w-7 h-7 text-xs shadow-md">
-              元点
+            <div className="seal-stamp-square w-7 h-7 text-xs shadow-md font-bold">
+              {t('userCenter.seal_text')}
             </div>
 
             {/* Fire Heat Badge */}
@@ -110,8 +148,8 @@ export const UserCenterPage: React.FC<UserCenterPageProps> = ({
           </div>
 
           {/* Watermark Logo bottom right */}
-          <div className="absolute bottom-4 right-6 font-chinese text-lg font-bold text-white/40 tracking-widest select-none pointer-events-none">
-            一帧山海
+          <div className="absolute bottom-4 right-6 text-sm font-black text-white/40 tracking-widest select-none pointer-events-none uppercase">
+            {t('userCenter.watermark')}
           </div>
         </div>
 
@@ -137,8 +175,12 @@ export const UserCenterPage: React.FC<UserCenterPageProps> = ({
                   <span className="text-base">💎</span>
                   <span>{user.name}</span>
                 </span>
-                <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
-                  {user.tier === 'supreme' ? 'Supreme Member' : 'Gold Member'}
+                <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${
+                  user.role === 'ADMIN'
+                    ? 'text-purple-600 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800'
+                    : 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800'
+                }`}>
+                  {user.role === 'ADMIN' ? 'Tổng Quản Trị (Admin)' : 'Học viên (User)'}
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md">
@@ -149,18 +191,28 @@ export const UserCenterPage: React.FC<UserCenterPageProps> = ({
 
           {/* Right Action Buttons */}
           <div className="flex items-center gap-2.5 self-end sm:self-center">
+            {/* Daily checkin button */}
+            <button
+              onClick={handleDailyCheckin}
+              disabled={isCheckingIn}
+              className="px-4 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white transition-all flex items-center gap-1.5 shadow-md hover:shadow-lg disabled:opacity-50"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{isCheckingIn ? 'Đang điểm danh...' : 'Điểm danh nhận Xu (+10)'}</span>
+            </button>
+
             <button
               onClick={() => sound.playClick()}
               className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 transition-colors flex items-center gap-1.5 shadow-sm"
             >
               <Award className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-              <span>User Center</span>
+              <span>Ví Xu: {user.credits ?? 0}</span>
             </button>
 
             <button
               onClick={onOpenNotifications}
               className="relative p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 transition-colors shadow-sm"
-              title="Notifications"
+              title="Thông báo"
             >
               <Bell className="w-4 h-4" />
               {unreadCount > 0 && (
@@ -178,7 +230,46 @@ export const UserCenterPage: React.FC<UserCenterPageProps> = ({
         <div className="flex flex-wrap items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-3 gap-3">
           {/* Main Tabs */}
           <div className="flex items-center gap-6 sm:gap-8 text-sm font-semibold">
-            {/* Collection 0 */}
+            {/* Real Courses Tab */}
+            <button
+              onClick={() => {
+                setActiveTab('courses');
+                sound.playClick();
+              }}
+              className={`relative pb-3 transition-colors ${
+                activeTab === 'courses'
+                  ? 'text-slate-900 dark:text-white font-bold'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+              }`}
+            >
+              <span className="flex items-center gap-1.5">
+                <BookOpen className="w-4 h-4 text-amber-500" />
+                <span>{t('userCenter.tab_courses')} ({myEnrollments.length})</span>
+              </span>
+              {activeTab === 'courses' && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500 rounded-full"></span>
+              )}
+            </button>
+
+            {/* Orders Tab */}
+            <button
+              onClick={() => {
+                setActiveTab('orders');
+                sound.playClick();
+              }}
+              className={`relative pb-3 transition-colors ${
+                activeTab === 'orders'
+                  ? 'text-slate-900 dark:text-white font-bold'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+              }`}
+            >
+              <span>{t('userCenter.tab_orders')} ({myOrders.length})</span>
+              {activeTab === 'orders' && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500 rounded-full"></span>
+              )}
+            </button>
+
+            {/* Collection */}
             <button
               onClick={() => {
                 setActiveTab('collection');
@@ -190,13 +281,13 @@ export const UserCenterPage: React.FC<UserCenterPageProps> = ({
                   : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
               }`}
             >
-              <span>Collection {user.stats?.collections ?? 0}</span>
+              <span>Bộ sưu tập ({user.stats?.collections ?? 0})</span>
               {activeTab === 'collection' && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-rose-600 dark:bg-amber-400 rounded-full"></span>
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500 rounded-full"></span>
               )}
             </button>
 
-            {/* Commentary 2 */}
+            {/* Commentary */}
             <button
               onClick={() => {
                 setActiveTab('commentary');
@@ -208,31 +299,13 @@ export const UserCenterPage: React.FC<UserCenterPageProps> = ({
                   : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
               }`}
             >
-              <span>Commentary {user.stats?.comments ?? 2}</span>
+              <span>Bình luận ({user.stats?.comments ?? 2})</span>
               {activeTab === 'commentary' && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-rose-600 dark:bg-amber-400 rounded-full"></span>
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500 rounded-full"></span>
               )}
             </button>
 
-            {/* Section 0 */}
-            <button
-              onClick={() => {
-                setActiveTab('section');
-                sound.playClick();
-              }}
-              className={`relative pb-3 transition-colors ${
-                activeTab === 'section'
-                  ? 'text-slate-900 dark:text-white font-bold'
-                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-              }`}
-            >
-              <span>Section 0</span>
-              {activeTab === 'section' && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-rose-600 dark:bg-amber-400 rounded-full"></span>
-              )}
-            </button>
-
-            {/* Post 7 */}
+            {/* Post */}
             <button
               onClick={() => {
                 setActiveTab('post');
@@ -244,9 +317,9 @@ export const UserCenterPage: React.FC<UserCenterPageProps> = ({
                   : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
               }`}
             >
-              <span>Post 7</span>
+              <span>Bài viết đã đăng</span>
               {activeTab === 'post' && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-rose-600 dark:bg-amber-400 rounded-full"></span>
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500 rounded-full"></span>
               )}
             </button>
 
@@ -296,7 +369,6 @@ export const UserCenterPage: React.FC<UserCenterPageProps> = ({
               </button>
             </div>
 
-            {/* Sorting Filter matching Screenshot 7 */}
             <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
               <span className="cursor-pointer hover:text-slate-800 dark:hover:text-slate-200">
                 Sorting ▾
@@ -307,6 +379,116 @@ export const UserCenterPage: React.FC<UserCenterPageProps> = ({
 
         {/* Tab Content */}
         <div className="py-8">
+          {/* Real Courses Tab from PostgreSQL */}
+          {activeTab === 'courses' && (
+            <div className="space-y-4">
+              {myEnrollments.length === 0 ? (
+                <div className="text-center py-12">
+                  <BookOpen className="w-12 h-12 text-slate-400 mx-auto mb-3 opacity-60" />
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    Bạn chưa đăng ký khóa học nào
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Hãy tham gia mua chung hoặc kích hoạt khóa học để nhận quyền truy cập Google Drive.
+                  </p>
+                  <button
+                    onClick={onBackToHome}
+                    className="mt-4 px-4 py-2 rounded-xl text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white"
+                  >
+                    Khám phá Khóa học
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {myEnrollments.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-4 rounded-xl bg-slate-50 dark:bg-[#152a35] border border-slate-200 dark:border-[#233f50] flex flex-col justify-between hover:shadow-lg transition-all"
+                    >
+                      <div className="flex gap-3">
+                        <img
+                          src={item.thumbnail || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200'}
+                          alt={item.itemTitle}
+                          className="w-20 h-20 rounded-lg object-cover shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                            {item.itemCode || 'ACTIVE'}
+                          </span>
+                          <h4 className="text-sm font-bold text-slate-900 dark:text-white mt-1 line-clamp-2">
+                            {item.itemTitle}
+                          </h4>
+                          <span className="text-[11px] text-slate-400 mt-1 block">
+                            Đã kích hoạt: {new Date(item.createdAt).toLocaleDateString('vi-VN')}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs">
+                        <span className="text-emerald-500 font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Google Drive: Đã cấp quyền</span>
+                        </span>
+                        <button
+                          onClick={onBackToHome}
+                          className="px-3 py-1 rounded-lg bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 font-semibold transition-colors"
+                        >
+                          Vào học ngay →
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Real Orders Tab from PostgreSQL */}
+          {activeTab === 'orders' && (
+            <div className="space-y-3">
+              {myOrders.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 text-xs">
+                  Chưa có lịch sử đơn hàng nào.
+                </div>
+              ) : (
+                myOrders.map((ord: any) => (
+                  <div
+                    key={ord.id}
+                    className="p-4 rounded-xl bg-slate-50 dark:bg-[#152a35] border border-slate-200 dark:border-[#233f50] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">
+                          #{ord.orderCode}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            ord.status === 'COMPLETED'
+                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                              : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                          }`}
+                        >
+                          {ord.status}
+                        </span>
+                      </div>
+                      <span className="text-slate-400 mt-1 block">
+                        Ngày tạo: {new Date(ord.createdAt).toLocaleString('vi-VN')}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      <span className="font-bold text-amber-500 text-sm">
+                        {ord.totalCredits ? `${ord.totalCredits} Xu` : `${Number(ord.totalAmountVnd).toLocaleString('vi-VN')} ₫`}
+                      </span>
+                      <span className="text-slate-400">
+                        Phương thức: {ord.paymentMethod}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
           {activeTab === 'collection' && (
             /* Empty State matching Screenshot 7 & 8 */
             <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -416,12 +598,6 @@ export const UserCenterPage: React.FC<UserCenterPageProps> = ({
                   Bộ LUTs giả lập tông màu phim 35mm ấm áp của Kodak Vision3, giữ lại chi tiết vùng tối khi quay trong chùa cổ hoặc ngõ phố đêm...
                 </p>
               </div>
-            </div>
-          )}
-
-          {activeTab === 'section' && (
-            <div className="text-center py-10 text-slate-500 text-xs">
-              No sections created yet. You can create a section from the floating action menu.
             </div>
           )}
 

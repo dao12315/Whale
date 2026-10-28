@@ -17,6 +17,9 @@ export interface User {
   heat?: number;
   stats?: UserStats;
   dailyCheckedIn?: boolean;
+  googleEmail?: string;
+  role?: 'USER' | 'INSTRUCTOR' | 'ADMIN';
+  isActive?: boolean;
 }
 
 export interface CommentReply {
@@ -59,6 +62,8 @@ export interface Course {
   thumbnail: string;
   eventDate?: string;
   isFree?: boolean;
+  originalUrl?: string;
+  priceVnd?: number;
   originalPrice: number;
   goldPrice: number;
   supremePrice: number;
@@ -126,6 +131,17 @@ export interface ForumPost {
   category: 'attention' | 'summary' | 'section' | 'popular' | 'essence' | 'qa' | 'voting';
   isFollowed?: boolean;
   commentsList?: ForumComment[];
+  status?: 'PUBLISHED' | 'DRAFT' | 'ARCHIVED';
+  moderationStatus?: 'APPROVED' | 'PENDING' | 'REJECTED';
+  moderationBadge?: string;
+  author?: {
+    id: string;
+    name: string;
+    email?: string;
+    avatarUrl?: string;
+  };
+  createdAt?: string;
+  viewsCount?: number;
 }
 
 export type NotificationType = 'comment' | 'group_buy' | 'system' | 'vip' | 'credit';

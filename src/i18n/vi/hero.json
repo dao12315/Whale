@@ -1,0 +1,16 @@
+{
+  "title": "GROUP BUYING & DIRECT SALES • SPECIAL COURSES",
+  "subtitle": "Tổng hợp danh mục khóa học chọn lọc · Toàn bộ bài học và tài nguyên đồ họa chất lượng cao",
+  "tab_paid": "Khóa chuyên sâu (VIP)",
+  "tab_paid_badge": "VIP & Drive",
+  "tab_free": "Khóa xem trước & Cộng đồng",
+  "tab_free_badge": "Mở xem ngay",
+  "catalog_btn": "COURSE CATALOG",
+  "online_status": "Hệ thống trực tuyến: Đang đồng bộ bình luận",
+  "syncing_courses": "Đang đồng bộ danh mục khóa học từ Backend API...",
+  "empty_title": "Không tìm thấy khóa học nào phù hợp với từ khóa \"{query}\"",
+  "empty_desc": "Thử tìm kiếm với từ khóa khác như Blender, DaVinci, [484] hoặc xóa bộ lọc để xem toàn bộ danh mục.",
+  "empty_action": "Xóa bộ lọc tìm kiếm",
+  "free_banner_title": "Khóa học mở & Tài nguyên cộng đồng:",
+  "free_banner_desc": "Tất cả học viên đều có thể vào học ngay, tải tài liệu thực hành và giáo trình HD hoàn toàn tự do."
+}

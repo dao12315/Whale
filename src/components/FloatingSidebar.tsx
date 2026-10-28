@@ -6,6 +6,7 @@ import {
   MessageCircle,
 } from 'lucide-react';
 import { sound } from '../services/sound';
+import { useI18n } from '../i18n';
 
 import { Language } from '../types';
 
@@ -32,6 +33,7 @@ export const FloatingSidebar: React.FC<FloatingSidebarProps> = ({
   unreadCount,
   currentLang = 'vi',
 }) => {
+  const { t } = useI18n();
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const plusMenuRef = useRef<HTMLDivElement>(null);
 
@@ -117,10 +119,10 @@ export const FloatingSidebar: React.FC<FloatingSidebarProps> = ({
                     </div>
                     <div className="flex flex-col">
                       <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
-                        {currentLang === 'vi' ? 'Đăng bài viết mới' : 'Post a post'}
+                        {t('forum.btn_create_post')}
                       </span>
                       <span className="text-[10px] text-amber-400">
-                        {currentLang === 'vi' ? 'Tải ảnh máy & Soạn thảo' : 'Post editor'}
+                        {t('forum.editor_title')}
                       </span>
                     </div>
                   </button>

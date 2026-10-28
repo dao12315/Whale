@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Comment, CommentReply, ChatMessage, Course, ForumPost, ForumComment } from '../types';
-import { INITIAL_COMMENTS, INITIAL_CHAT_MESSAGES, INITIAL_COURSES } from '../data/coursesData';
-import { INITIAL_FORUM_POSTS } from '../data/forumData';
 import { notificationService } from '../services/notificationService';
 import { sound } from '../services/sound';
 import { useAuth } from './AuthContext';
+import { coursesApi } from '../services/coursesApi';
+import { postsApi } from '../services/postsApi';
+import { chatApi } from '../services/chatApi';
 
 interface RealtimeContextType {
   courses: Course[];
@@ -29,42 +30,84 @@ const RealtimeContext = createContext<RealtimeContextType | undefined>(undefined
 
 export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
-  const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
+  const [courses, setCourses] = useState<Course[]>([]);
 
-  // Load comments with fallback to INITIAL_COMMENTS
+  // Load comments from PostgreSQL / localStorage cache
   const [comments, setComments] = useState<Record<string, Comment[]>>(() => {
-    if (typeof window === 'undefined') return INITIAL_COMMENTS;
+    if (typeof window === 'undefined') return {};
     try {
       const stored = localStorage.getItem('shanhai_realtime_comments');
-      return stored ? JSON.parse(stored) : INITIAL_COMMENTS;
+      return stored ? JSON.parse(stored) : {};
     } catch {
-      return INITIAL_COMMENTS;
+      return {};
     }
   });
 
   // Chat messages for community drawer
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
-    if (typeof window === 'undefined') return INITIAL_CHAT_MESSAGES;
+    if (typeof window === 'undefined') return [];
     try {
       const stored = localStorage.getItem('shanhai_chat_messages');
-      return stored ? JSON.parse(stored) : INITIAL_CHAT_MESSAGES;
+      return stored ? JSON.parse(stored) : [];
     } catch {
-      return INITIAL_CHAT_MESSAGES;
+      return [];
     }
   });
 
   // Forum posts state shared across ForumHomepage, CreatePostModal, and PostEditorPage
   const [forumPosts, setForumPosts] = useState<ForumPost[]>(() => {
-    if (typeof window === 'undefined') return INITIAL_FORUM_POSTS;
+    if (typeof window === 'undefined') return [];
     try {
       const stored = localStorage.getItem('shanhai_forum_posts');
-      return stored ? JSON.parse(stored) : INITIAL_FORUM_POSTS;
+      return stored ? JSON.parse(stored) : [];
     } catch {
-      return INITIAL_FORUM_POSTS;
+      return [];
     }
   });
 
-  const [isSimulatingActive, setIsSimulatingActive] = useState<boolean>(true);
+  const [isSimulatingActive, setIsSimulatingActive] = useState<boolean>(false);
+
+  // Tự động nạp dữ liệu Khóa Học thời gian thực từ PostgreSQL Database qua REST API
+  useEffect(() => {
+    coursesApi
+      .getCourses({ limit: 50 })
+      .then((res) => {
+        if (res?.data && res.data.length > 0) {
+          setCourses(res.data);
+        }
+      })
+      .catch((err) => {
+        console.log('[RealtimeContext] Dùng mock courses khi offline:', err?.message);
+      });
+  }, []);
+
+  // Tự động nạp dữ liệu Tin Nhắn Chat thời gian thực từ PostgreSQL Database
+  useEffect(() => {
+    chatApi
+      .getMessages()
+      .then((res) => {
+        if (res?.data && res.data.length > 0) {
+          setChatMessages(res.data);
+        }
+      })
+      .catch((err) => {
+        console.log('[RealtimeContext] Chat offline notice:', err?.message);
+      });
+  }, []);
+
+  // Tự động nạp dữ liệu Bài Viết Diễn Đàn thời gian thực từ PostgreSQL Database qua REST API
+  useEffect(() => {
+    postsApi
+      .getPosts({ limit: 50 })
+      .then((res) => {
+        if (res?.data && res.data.length > 0) {
+          setForumPosts(res.data);
+        }
+      })
+      .catch((err) => {
+        console.log('[RealtimeContext] Dùng mock posts khi offline:', err?.message);
+      });
+  }, []);
 
   // Sync comments to localStorage
   useEffect(() => {
@@ -189,6 +232,11 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     sound.playCommentPop();
     broadcastEvent('NEW_COMMENT', { courseId, comment: newComment });
 
+    // Lưu bình luận vào PostgreSQL Database qua REST API
+    coursesApi.addComment(courseId, content.trim()).catch((err) => {
+      console.log('[RealtimeContext] Lưu comment vào PostgreSQL notice:', err?.message);
+    });
+
     // Simulate smart interactive peer reply after 4-6 seconds if enabled
     if (isSimulatingActive) {
       setTimeout(() => {
@@ -235,6 +283,11 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     sound.playCommentPop();
 
+    // Lưu phản hồi vào PostgreSQL Database
+    coursesApi.addReply(courseId, parentCommentId, content.trim()).catch((err) => {
+      console.log('[RealtimeContext] Lưu reply vào PostgreSQL notice:', err?.message);
+    });
+
     // Trigger push notification to other users
     notificationService.sendPushNotification({
       type: 'comment',
@@ -277,6 +330,8 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return c;
       })
     );
+    // Ghi nhận lượt thích vào PostgreSQL Database
+    coursesApi.likeCourse(courseId).catch(() => {});
   };
 
   const sendChatMessage = (text: string) => {
@@ -303,6 +358,11 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setChatMessages((prev) => [...prev, newMsg]);
     sound.playCommentPop();
     broadcastEvent('NEW_CHAT', { message: newMsg });
+
+    // Lưu tin nhắn chat vào PostgreSQL Database
+    chatApi.sendMessage(text.trim()).catch((err) => {
+      console.log('[RealtimeContext] Lưu chat vào PostgreSQL notice:', err?.message);
+    });
   };
 
   // Automated simulated peer responses to make the demo lively & prove real-time mechanics
@@ -410,7 +470,7 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
   };
 
-  const addForumPost = useCallback((newPost: ForumPost) => {
+  const addForumPost = useCallback(async (newPost: ForumPost) => {
     setForumPosts((prev) => [newPost, ...prev]);
     sound.playSuccess();
     notificationService.sendPushNotification({
@@ -419,6 +479,18 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       message: `Tác giả ${newPost.authorName} vừa đăng "${newPost.title}"`,
       timestamp: 'Vừa xong',
     });
+
+    // Lưu bài viết trực tiếp vào Database PostgreSQL qua REST API
+    try {
+      await postsApi.createPost({
+        boardId: newPost.boardId || 'board-inspiration',
+        title: newPost.title,
+        content: newPost.content,
+        coverImageUrl: newPost.images?.[0],
+      });
+    } catch (err: any) {
+      console.log('[RealtimeContext] Ghi bài viết vào PostgreSQL notice:', err?.message);
+    }
   }, []);
 
   const addForumComment = useCallback((postId: string, commentText: string, image?: string) => {

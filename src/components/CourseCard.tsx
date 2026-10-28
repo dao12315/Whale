@@ -2,7 +2,9 @@ import React from 'react';
 import { Course } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useRealtime } from '../context/RealtimeContext';
-import { MessageSquare, Eye, ThumbsUp, Heart, CheckCircle2 } from 'lucide-react';
+import { MessageSquare, Eye, ThumbsUp, Heart, CheckCircle2, Crown } from 'lucide-react';
+import { getCourseVndPrices } from '../utils/currency';
+import { useI18n } from '../i18n';
 
 interface CourseCardProps {
   course: Course;
@@ -17,19 +19,15 @@ export const CourseCard: React.FC<CourseCardProps> = ({
 }) => {
   const { user, isWishlisted, toggleWishlist, hasPurchased } = useAuth();
   const { likeCourse, getCommentsForCourse } = useRealtime();
+  const { t } = useI18n();
 
   const commentsList = getCommentsForCourse(course.id);
   const liveCommentCount = Math.max(course.commentsCount, commentsList.length);
   const isUnlocked = hasPurchased(course.id);
   const wishlisted = isWishlisted(course.id);
 
-  // Calculate user price based on membership tier
-  const userPrice =
-    user?.tier === 'supreme'
-      ? course.supremePrice
-      : user?.tier === 'gold'
-      ? course.goldPrice
-      : course.originalPrice;
+  // Tính toán học phí VND và trạng thái miễn phí
+  const coursePrices = getCourseVndPrices(course);
 
   return (
     <div
@@ -106,12 +104,15 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             {course.title}
           </h3>
 
-          {/* Category / Creator Tag matching screenshot "coloso" */}
-          <div className="mt-2 flex items-center gap-1.5">
+          {/* Category / Admin Creator Tag */}
+          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
             <span className="text-[11px] font-bold text-stone-700 dark:text-slate-300 lowercase tracking-wide">
               {course.category}
             </span>
-            <span className="text-[10px] text-stone-500 dark:text-slate-500 font-serif">• {course.instructor}</span>
+            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold inline-flex items-center gap-1">
+              • <Crown className="w-2.5 h-2.5 text-amber-500 fill-amber-500" />
+              <span>{course.instructor}</span>
+            </span>
           </div>
         </div>
 
@@ -121,9 +122,9 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             {/* Left: Avatar + Published Time Ago */}
             <div className="flex items-center gap-2">
               <img
-                src={course.authorAvatar}
-                alt="Author"
-                className="w-5 h-5 rounded-full object-cover border border-stone-300 dark:border-slate-600"
+                src={course.authorAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80'}
+                alt={course.instructor || 'Admin'}
+                className="w-5 h-5 rounded-full object-cover border border-amber-500/40"
               />
               <span className="text-[11px] text-stone-500 dark:text-slate-400 font-light">{course.publishedTimeAgo}</span>
             </div>
@@ -168,72 +169,34 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             </div>
           </div>
 
-          {/* Dotted Divider matching screenshot */}
+          {/* Dotted Divider */}
           <div className="my-3 border-t border-dotted border-stone-200 dark:border-slate-700/70"></div>
 
-          {/* Course Price row */}
-          {course.originalPrice === 0 ? (
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                <span>Khóa học miễn phí</span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20 border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300 font-mono font-bold">
-                  100% FREE
-                </span>
+          {/* Course Access / Learning Information (No Price Display) */}
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-amber-700 dark:text-amber-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+              <span>Quyền học trọn đời</span>
+            </span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950/60 border border-teal-300 dark:border-teal-700/60 text-teal-800 dark:text-teal-300 font-semibold">
+              Google Drive VIP
+            </span>
+          </div>
+
+          {/* Curriculum & Resources info pills */}
+          <div className="mt-2.5 grid grid-cols-2 gap-2">
+            <div className="flex flex-col items-center justify-center p-1.5 rounded-lg bg-stone-50 dark:bg-[#152732] border border-stone-200 dark:border-slate-800 text-center">
+              <span className="text-[10px] text-stone-500 dark:text-slate-400 font-medium">Giáo trình</span>
+              <span className="text-xs font-bold text-stone-900 dark:text-slate-100 font-mono">
+                {course.chapters && course.chapters.length > 0 ? `${course.chapters.length} bài giảng` : 'Toàn bộ bài học'}
               </span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-lg font-extrabold text-emerald-700 dark:text-emerald-400 font-mono">
-                  0
-                </span>
-                <span className="text-[10px] text-emerald-700 dark:text-emerald-300 uppercase font-bold tracking-wide">
-                  Credits
-                </span>
-              </div>
             </div>
-          ) : (
-            <div className="flex items-baseline justify-between">
-              <span className="text-[11px] text-stone-500 dark:text-slate-400 font-medium">Course prices</span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-lg font-extrabold text-amber-700 dark:text-amber-400 font-mono">
-                  {course.originalPrice}
-                </span>
-                <span className="text-[10px] text-stone-500 dark:text-slate-400 uppercase font-medium tracking-wide">
-                  Credits
-                </span>
-              </div>
+            <div className="flex flex-col items-center justify-center p-1.5 rounded-lg bg-stone-50 dark:bg-[#152732] border border-stone-200 dark:border-slate-800 text-center">
+              <span className="text-[10px] text-stone-500 dark:text-slate-400 font-medium">Tài nguyên dự án</span>
+              <span className="text-xs font-bold text-stone-900 dark:text-slate-100 font-mono">
+                Video HD & Project
+              </span>
             </div>
-          )}
-
-          {/* Member Discounts Pills matching screenshot */}
-          {course.originalPrice === 0 ? (
-            <div className="mt-2.5 grid grid-cols-2 gap-2">
-              <div className="flex flex-col items-center justify-center p-1.5 rounded-lg bg-emerald-50 dark:bg-[#0e2520]/80 border border-emerald-200 dark:border-emerald-500/40 text-center">
-                <span className="text-[10px] text-emerald-800 dark:text-emerald-300/90 font-medium">Quyền truy cập</span>
-                <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200">Xem ngay miễn phí</span>
-              </div>
-              <div className="flex flex-col items-center justify-center p-1.5 rounded-lg bg-teal-50 dark:bg-[#11292a]/80 border border-teal-200 dark:border-teal-500/40 text-center">
-                <span className="text-[10px] text-teal-800 dark:text-teal-300/90 font-medium">Tài nguyên kèm</span>
-                <span className="text-xs font-bold text-teal-900 dark:text-teal-200">Đầy đủ File gốc</span>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-2.5 grid grid-cols-2 gap-2">
-              {/* Gold member */}
-              <div className="flex flex-col items-center justify-center p-1.5 rounded-lg bg-amber-50 dark:bg-[#24211a]/70 border border-amber-200 dark:border-amber-600/40 text-center">
-                <span className="text-[10px] text-amber-800 dark:text-amber-300/90 font-medium">Gold member</span>
-                <span className="text-xs font-bold text-amber-900 dark:text-amber-200 font-mono">
-                  {course.goldPrice} <span className="text-[9px] font-normal text-amber-700 dark:text-amber-300/70">credits</span>
-                </span>
-              </div>
-
-              {/* Supreme member */}
-              <div className="flex flex-col items-center justify-center p-1.5 rounded-lg bg-purple-50 dark:bg-[#251a2e]/70 border border-purple-200 dark:border-purple-500/40 text-center">
-                <span className="text-[10px] text-purple-800 dark:text-purple-300/90 font-medium">Supreme member</span>
-                <span className="text-xs font-bold text-purple-900 dark:text-purple-200 font-mono">
-                  {course.supremePrice} <span className="text-[9px] font-normal text-purple-700 dark:text-purple-300/70">credits</span>
-                </span>
-              </div>
-            </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

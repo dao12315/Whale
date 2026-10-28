@@ -1,8 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useRealtime } from '../context/RealtimeContext';
-import { ForumPost } from '../types';
-import { FORUM_BOARDS } from '../data/forumData';
+import { ForumPost, ForumBoard } from '../types';
+import { postsApi } from '../services/postsApi';
 import { sound } from '../services/sound';
 import { notificationService } from '../services/notificationService';
 import confetti from 'canvas-confetti';
@@ -40,6 +40,19 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 }) => {
   const { user, isAuthenticated, addCredits } = useAuth();
   const { addForumPost } = useRealtime();
+
+  const [boards, setBoards] = useState<ForumBoard[]>([]);
+
+  useEffect(() => {
+    postsApi
+      .getBoards()
+      .then((res) => {
+        if (res?.data && res.data.length > 0) {
+          setBoards(res.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -162,7 +175,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     notificationService.sendPushNotification({
       type: 'comment',
       title: '🎉 Đăng bài viết thảo luận thành công!',
-      message: `Bài viết "${newPost.title}" đã được hiển thị trên Diễn đàn 一帧山海. Tặng bạn +5 Credits đóng góp.`,
+      message: `Bài viết "${newPost.title}" đã được hiển thị trên Diễn đàn GGC Studio. Tặng bạn +5 Credits đóng góp.`,
       timestamp: 'Vừa xong',
     });
 
@@ -235,7 +248,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   Yêu Cầu Đăng Nhập
                 </h4>
                 <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
-                  Để đảm bảo chất lượng nội dung và an toàn cộng đồng, chỉ những thành viên đã đăng nhập mới có quyền đăng bài viết, chia sẻ assets hoặc đặt câu hỏi trên diễn đàn 一帧山海.
+                  Để đảm bảo chất lượng nội dung và an toàn cộng đồng, chỉ những thành viên đã đăng nhập mới có quyền đăng bài viết, chia sẻ assets hoặc đặt câu hỏi trên diễn đàn GGC Studio.
                 </p>
               </div>
 
@@ -289,11 +302,11 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                     onChange={(e) => setBoardId(e.target.value)}
                     className="w-full bg-[#12222b] text-slate-200 text-xs rounded-xl px-3 py-2.5 border border-[#233b47] focus:border-amber-400 focus:outline-none"
                   >
-                    <option value="board-have-tutorial">I have tutorials (Có hướng dẫn)</option>
-                    <option value="board-need-tutorial">I need a tutorial (Cần hướng dẫn)</option>
-                    <option value="board-inspiration">Inspiration sharing (Cảm hứng sáng tạo)</option>
-                    <option value="board-asset">Asset sharing (Chia sẻ tài nguyên)</option>
-                    <option value="board-study">Study (Góc học tập & trao đổi)</option>
+                    {boards.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.title}
+                      </option>
+                    ))}
                   </select>
                 </div>
 

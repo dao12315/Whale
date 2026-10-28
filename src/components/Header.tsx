@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Language } from '../types';
 import {
   Search,
   ChevronDown,
@@ -16,8 +15,11 @@ import {
   Check,
   Sun,
   Moon,
+  Shield,
+  LogIn,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useI18n, SupportedLanguage } from '../i18n';
 
 import { UserDropdown } from './UserDropdown';
 
@@ -32,8 +34,8 @@ interface HeaderProps {
   onOpenUserCenter?: () => void;
   onOpenPublish?: () => void;
   unreadCount: number;
-  currentLang: Language;
-  onLanguageChange: (lang: Language) => void;
+  currentLang?: SupportedLanguage;
+  onLanguageChange?: (lang: SupportedLanguage) => void;
   activeNavTab: string;
   setActiveNavTab: (tab: string) => void;
 }
@@ -56,11 +58,18 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const { user, isAuthenticated, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { currentLang: ctxLang, setLanguage, t } = useI18n();
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showLangDropdown, setShowLangDropdown] = useState(false);
 
+  const activeLang = (currentLang || ctxLang) as SupportedLanguage;
+  const handleLangChange = (code: SupportedLanguage) => {
+    setLanguage(code);
+    if (onLanguageChange) onLanguageChange(code);
+  };
+
   // 2 Languages: Tiếng Việt & English
-  const languagesList: { code: Language; label: string; flag: string }[] = [
+  const languagesList: { code: SupportedLanguage; label: string; flag: string }[] = [
     { code: 'vi', label: 'Tiếng Việt', flag: '🇻🇳' },
     { code: 'en', label: 'English', flag: '🇺🇸' },
   ];
@@ -101,7 +110,7 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'text-stone-700 dark:text-slate-300 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200/60 dark:hover:bg-[#152732] rounded-lg'
               }`}
             >
-              <span>{currentLang === 'vi' ? 'Mua chung' : 'Group Buying'}</span>
+              <span>{t('header.nav_group_buy')}</span>
               {(activeNavTab === 'group_buy' || activeNavTab === 'course_detail') && (
                 <span className="absolute bottom-0 left-2 right-2 h-[2.5px] bg-gradient-to-r from-amber-500 via-orange-400 to-yellow-400 shadow-[0_0_10px_rgba(245,158,11,0.8)] rounded-full animate-in fade-in"></span>
               )}
@@ -117,11 +126,32 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <span className="text-amber-600 dark:text-amber-400 text-xs">💬</span>
-              <span>{currentLang === 'vi' ? 'Diễn đàn' : 'Forum homepage'}</span>
+              <span>{t('header.nav_forum')}</span>
               {activeNavTab === 'forum' && (
                 <span className="absolute bottom-0 left-2 right-2 h-[2.5px] bg-gradient-to-r from-amber-500 via-orange-400 to-yellow-400 shadow-[0_0_10px_rgba(245,158,11,0.8)] rounded-full animate-in fade-in"></span>
               )}
             </button>
+
+            {/* Admin Portal Tab - CHỈ HIỂN THỊ KHI ĐĂNG NHẬP VỚI TƯ CÁCH ADMIN */}
+            {isAuthenticated && (user?.role === 'ADMIN' || user?.tier === 'admin') && (
+              <button
+                onClick={() => setActiveNavTab('admin')}
+                className={`relative px-3.5 py-2 text-sm font-medium transition-all flex items-center gap-1.5 ${
+                  activeNavTab === 'admin'
+                    ? 'text-purple-700 dark:text-purple-300 font-bold'
+                    : 'text-stone-700 dark:text-slate-300 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200/60 dark:hover:bg-[#152732] rounded-lg'
+                }`}
+              >
+                <Shield className="w-3.5 h-3.5 text-purple-500" />
+                <span>{t('header.nav_admin')}</span>
+                <span className="text-[9px] uppercase px-1 rounded bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-500/30 font-bold">
+                  {t('header.nav_admin_portal')}
+                </span>
+                {activeNavTab === 'admin' && (
+                  <span className="absolute bottom-0 left-2 right-2 h-[2.5px] bg-gradient-to-r from-purple-500 to-indigo-500 shadow-[0_0_10px_rgba(168,85,247,0.8)] rounded-full animate-in fade-in"></span>
+                )}
+              </button>
+            )}
           </nav>
         </div>
 
@@ -134,8 +164,8 @@ export const Header: React.FC<HeaderProps> = ({
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder={
                 activeNavTab === 'forum'
-                  ? (currentLang === 'vi' ? 'Tìm bài viết, tác giả forum...' : 'Search for content')
-                  : (currentLang === 'vi' ? 'Tìm kiếm khóa học, mã số [480]...' : 'Search for content')
+                  ? t('header.search_placeholder_forum')
+                  : t('header.search_placeholder_courses')
               }
               className="w-full bg-white dark:bg-[#12222b] text-stone-900 dark:text-slate-200 text-xs rounded-full pl-4 pr-9 py-2 border border-stone-300 dark:border-[#233a46] focus:border-amber-600 dark:focus:border-amber-400/80 focus:outline-none focus:ring-1 focus:ring-amber-500/40 placeholder:text-stone-400 dark:placeholder:text-slate-500 transition-all shadow-inner dark:shadow-none"
             />
@@ -148,7 +178,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Theme Toggle (Light & Dark) */}
           <button
             onClick={toggleTheme}
-            title={theme === 'dark' ? 'Chuyển sang giao diện Sáng (Light mode)' : 'Chuyển sang giao diện Tối (Dark mode)'}
+            title={t('header.switch_theme')}
             className="p-2 rounded-xl text-stone-700 dark:text-slate-300 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-stone-200/80 dark:hover:bg-[#162933] transition-colors flex items-center justify-center border border-stone-200/80 dark:border-transparent"
           >
             {theme === 'dark' ? (
@@ -163,10 +193,10 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => setShowLangDropdown(!showLangDropdown)}
               className="p-1.5 rounded-lg text-stone-700 dark:text-slate-300 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200/80 dark:hover:bg-[#162933] text-xs font-medium flex items-center gap-1.5 transition-colors"
-              title="Chuyển đổi ngôn ngữ / Switch Language"
+              title={t('header.switch_language')}
             >
               <Globe className="w-3.5 h-3.5 text-stone-500 dark:text-slate-400" />
-              <span className="text-[11px] uppercase font-bold text-stone-800 dark:text-slate-200">{currentLang}</span>
+              <span className="text-[11px] uppercase font-bold text-stone-800 dark:text-slate-200">{activeLang}</span>
               <ChevronDown className="w-3 h-3 text-stone-500 dark:text-slate-400" />
             </button>
 
@@ -176,13 +206,13 @@ export const Header: React.FC<HeaderProps> = ({
                 className="absolute top-full right-0 mt-1 w-44 bg-white/95 dark:bg-[#102029]/95 backdrop-blur-xl border border-stone-200 dark:border-[#233f4e] rounded-xl shadow-2xl py-1.5 z-50 text-xs animate-in fade-in"
               >
                 <div className="px-3 py-1 text-[10px] text-stone-500 dark:text-slate-400 font-semibold uppercase tracking-wider border-b border-stone-200 dark:border-slate-800">
-                  Select Language
+                  {t('header.language_select')}
                 </div>
                 {languagesList.map((langItem) => (
                   <button
                     key={langItem.code}
                     onClick={() => {
-                      onLanguageChange(langItem.code);
+                      handleLangChange(langItem.code);
                       setShowLangDropdown(false);
                     }}
                     className="w-full px-3 py-1.5 text-left text-stone-700 dark:text-slate-300 hover:bg-stone-100 dark:hover:bg-[#18313f] hover:text-amber-700 dark:hover:text-amber-300 flex items-center justify-between transition-colors"
@@ -191,7 +221,7 @@ export const Header: React.FC<HeaderProps> = ({
                       <span>{langItem.flag}</span>
                       <span>{langItem.label}</span>
                     </span>
-                    {currentLang === langItem.code && <Check className="w-3 h-3 text-amber-600 dark:text-amber-400" />}
+                    {activeLang === langItem.code && <Check className="w-3 h-3 text-amber-600 dark:text-amber-400" />}
                   </button>
                 ))}
               </div>
@@ -202,9 +232,10 @@ export const Header: React.FC<HeaderProps> = ({
           {!isAuthenticated ? (
             <button
               onClick={onOpenAuth}
-              className="text-xs font-medium text-slate-300 hover:text-amber-300 px-3 py-1.5 rounded-lg hover:bg-[#162933] transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-300 border border-amber-500/40 shadow-sm hover:shadow-[0_0_12px_rgba(245,158,11,0.25)] transition-all cursor-pointer"
             >
-              {currentLang === 'vi' ? 'Đăng nhập | Đăng ký' : 'Log in | Register'}
+              <LogIn className="w-3.5 h-3.5 text-amber-400" />
+              <span>{t('header.login_register')}</span>
             </button>
           ) : (
             <div className="relative">

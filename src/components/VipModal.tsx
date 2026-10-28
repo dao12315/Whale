@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { X, Crown, Check, Sparkles, Zap, Shield, Gift } from 'lucide-react';
+import { useI18n } from '../i18n';
 
 interface VipModalProps {
   isOpen: boolean;
@@ -9,6 +10,7 @@ interface VipModalProps {
 
 export const VipModal: React.FC<VipModalProps> = ({ isOpen, onClose }) => {
   const { user, upgradeTier } = useAuth();
+  const { t } = useI18n();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -38,9 +40,9 @@ export const VipModal: React.FC<VipModalProps> = ({ isOpen, onClose }) => {
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-bold text-slate-100 font-cinzel">
-                Nâng Cấp Hội Viên Đặc Quyền 一帧山海
+                {t('faq.vip_modal_title')}
               </h3>
-              <p className="text-[10px] text-slate-400">Membership Tiers & VIP Benefits</p>
+              <p className="text-[10px] text-slate-400">{t('faq.vip_modal_subtitle')}</p>
             </div>
           </div>
           <button
@@ -54,7 +56,7 @@ export const VipModal: React.FC<VipModalProps> = ({ isOpen, onClose }) => {
         {/* Content */}
         <div className="p-6 space-y-6">
           <p className="text-xs text-slate-300 text-center max-w-lg mx-auto">
-            Hội viên VIP được hưởng mức giá mua chung ưu đãi độc quyền trên mọi khóa học và tài nguyên số. Giá được tự động áp dụng ngay khi đăng nhập.
+            {t('faq.vip_modal_desc')}
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -73,7 +75,7 @@ export const VipModal: React.FC<VipModalProps> = ({ isOpen, onClose }) => {
                   </span>
                   {user?.tier === 'gold' && (
                     <span className="text-[10px] bg-amber-500 text-slate-950 font-bold px-2 py-0.5 rounded-full">
-                      Cấp hiện tại
+                      {t('faq.vip_current_tier')}
                     </span>
                   )}
                 </div>
@@ -83,7 +85,7 @@ export const VipModal: React.FC<VipModalProps> = ({ isOpen, onClose }) => {
                   <span className="text-xs text-slate-400 font-light">/ khóa học (Gốc 50)</span>
                 </div>
                 <div className="text-[11px] text-amber-300/80 font-medium mt-0.5">
-                  Chiết khấu cố định 10%
+                  {t('faq.vip_discount_gold')}
                 </div>
 
                 <ul className="mt-4 space-y-2 text-xs text-slate-300">
@@ -114,7 +116,7 @@ export const VipModal: React.FC<VipModalProps> = ({ isOpen, onClose }) => {
                 disabled={user?.tier === 'gold'}
                 className="mt-6 w-full py-2.5 rounded-xl bg-amber-600/80 hover:bg-amber-500 disabled:opacity-50 text-slate-950 font-bold text-xs shadow transition-all"
               >
-                {user?.tier === 'gold' ? 'Đang sở hữu gói Gold' : 'Kích hoạt Gold Member'}
+                {user?.tier === 'gold' ? t('faq.vip_own_gold') : t('faq.vip_upgrade_gold')}
               </button>
             </div>
 
@@ -135,7 +137,7 @@ export const VipModal: React.FC<VipModalProps> = ({ isOpen, onClose }) => {
                     Supreme Member
                   </span>
                   <span className="text-[10px] bg-gradient-to-r from-purple-500 to-amber-400 text-slate-950 font-extrabold px-2 py-0.5 rounded-full shadow-sm">
-                    Khuyên dùng
+                    {t('faq.vip_recommended')}
                   </span>
                 </div>
 
@@ -144,7 +146,7 @@ export const VipModal: React.FC<VipModalProps> = ({ isOpen, onClose }) => {
                   <span className="text-xs text-slate-400 font-light">/ khóa học (Gốc 50)</span>
                 </div>
                 <div className="text-[11px] text-purple-300 font-medium mt-0.5">
-                  Chiết khấu tối đa 30% VIP
+                  {t('faq.vip_discount_supreme')}
                 </div>
 
                 <ul className="mt-4 space-y-2 text-xs text-slate-300">
@@ -175,7 +177,7 @@ export const VipModal: React.FC<VipModalProps> = ({ isOpen, onClose }) => {
                 disabled={user?.tier === 'supreme'}
                 className="mt-6 w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-purple-500 to-amber-500 hover:from-purple-500 hover:to-amber-400 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-purple-950/40 transition-all"
               >
-                {user?.tier === 'supreme' ? 'Đang sở hữu gói Supreme' : 'Nâng cấp Supreme VIP (350 Credits)'}
+                {user?.tier === 'supreme' ? t('faq.vip_own_supreme') : `${t('faq.vip_upgrade_supreme')} (350 Credits)`}
               </button>
             </div>
           </div>

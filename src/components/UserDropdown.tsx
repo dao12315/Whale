@@ -16,6 +16,7 @@ import {
   Check,
 } from 'lucide-react';
 import { sound } from '../services/sound';
+import { useI18n } from '../i18n';
 
 interface UserDropdownProps {
   onClose: () => void;
@@ -37,6 +38,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
   unreadCount,
 }) => {
   const { user, logout, claimDailyReward } = useAuth();
+  const { t } = useI18n();
 
   if (!user) return null;
 
@@ -135,7 +137,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
         {/* Balance Card */}
         <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-[#162933] border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between">
           <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-            <span>Balance</span>
+            <span>{t('userCenter.balance')}</span>
             <ChevronRight className="w-3 h-3 text-slate-400" />
           </div>
           <div className="mt-1 flex items-baseline justify-between">
@@ -151,7 +153,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
         {/* Points Card */}
         <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-[#162933] border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between">
           <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-            <span>Points</span>
+            <span>{t('userCenter.points')}</span>
             <ChevronRight className="w-3 h-3 text-slate-400" />
           </div>
           <div className="mt-1 flex items-baseline justify-between">
@@ -196,7 +198,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
           <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300">
             <UserIcon className="w-3.5 h-3.5" />
           </div>
-          <span>User Center</span>
+          <span>{t('userCenter.user_center')}</span>
         </button>
 
         {/* My order */}
@@ -210,22 +212,39 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
           <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300">
             <ShoppingBag className="w-3.5 h-3.5" />
           </div>
-          <span>My order</span>
+          <span>{t('userCenter.my_orders')}</span>
         </button>
 
-        {/* Publish articles */}
-        <button
-          onClick={() => {
-            onClose();
-            onOpenPublish();
-          }}
-          className="flex flex-col items-center gap-1 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors"
-        >
-          <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300">
-            <Edit3 className="w-3.5 h-3.5" />
-          </div>
-          <span>Publish articles</span>
-        </button>
+        {/* Role-based action: Admin quản lý/đăng tải, User xem khóa học của tôi */}
+        {user.role === 'ADMIN' ? (
+          <button
+            onClick={() => {
+              onClose();
+              onOpenPublish();
+            }}
+            className="flex flex-col items-center gap-1 p-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/40 text-purple-700 dark:text-purple-300 transition-colors"
+            title="Đăng tải khóa học mới (Quyền Admin)"
+          >
+            <div className="w-7 h-7 rounded-full bg-purple-100 dark:bg-purple-900/60 flex items-center justify-center text-purple-600 dark:text-purple-300">
+              <Edit3 className="w-3.5 h-3.5" />
+            </div>
+            <span className="font-semibold">{t('userCenter.publish_course')}</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              onClose();
+              onOpenUserCenter();
+            }}
+            className="flex flex-col items-center gap-1 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors"
+            title="Xem các khóa học đã mua và bài học của bạn"
+          >
+            <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300">
+              <UserIcon className="w-3.5 h-3.5" />
+            </div>
+            <span>{t('userCenter.my_courses')}</span>
+          </button>
+        )}
 
         {/* Logged out */}
         <button
@@ -238,7 +257,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
           <div className="w-7 h-7 rounded-full bg-rose-50 dark:bg-rose-950/40 flex items-center justify-center text-rose-500">
             <LogOut className="w-3.5 h-3.5" />
           </div>
-          <span>Logged out</span>
+          <span>{t('userCenter.logged_out')}</span>
         </button>
       </div>
     </div>

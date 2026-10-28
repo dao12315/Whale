@@ -88,14 +88,14 @@ export const ReleaseModal: React.FC<ReleaseModalProps> = ({ isOpen, onClose }) =
 
           <div>
             <label className="text-[11px] font-medium text-slate-300 block mb-1">
-              Tên gốc / Hán tự (Hiển thị thẻ bìa)
+              Phụ đề / Tiêu đề phụ (Hiển thị thẻ bìa)
             </label>
             <input
               type="text"
               value={titleZh}
               onChange={(e) => setTitleZh(e.target.value)}
-              placeholder="VD: 黄山云海 2026.06.12 | 徽州水墨意境航拍"
-              className="w-full bg-[#12222b] text-slate-200 text-xs rounded-xl px-3 py-2.5 border border-[#233b47] focus:border-amber-400 focus:outline-none font-chinese"
+              placeholder="VD: Unreal Engine 5 Cinematic Lighting & Rendering Masterclass"
+              className="w-full bg-[#12222b] text-slate-200 text-xs rounded-xl px-3 py-2.5 border border-[#233b47] focus:border-amber-400 focus:outline-none"
             />
           </div>
 
@@ -111,7 +111,7 @@ export const ReleaseModal: React.FC<ReleaseModalProps> = ({ isOpen, onClose }) =
               >
                 <option value="coloso">coloso</option>
                 <option value="wingfox">wingfox</option>
-                <option value="yizhen_exclusive">一帧山海 Độc quyền</option>
+                <option value="ggc_exclusive">GGC Studio Độc quyền</option>
                 <option value="artstation">artstation learning</option>
               </select>
             </div>

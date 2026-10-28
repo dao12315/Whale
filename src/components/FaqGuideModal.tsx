@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { sound } from '../services/sound';
 import { notificationService } from '../services/notificationService';
+import { useI18n } from '../i18n';
 
 export type FaqModalTab = 'faq' | 'request' | 'guide' | 'sponsor';
 
@@ -33,6 +34,7 @@ export const FaqGuideModal: React.FC<FaqGuideModalProps> = ({
   initialTab = 'faq',
   onOpenVip,
 }) => {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<FaqModalTab>(initialTab);
   const [faqSearch, setFaqSearch] = useState('');
   const [expandedFaq, setExpandedFaq] = useState<number | null>(0);
@@ -48,24 +50,24 @@ export const FaqGuideModal: React.FC<FaqGuideModalProps> = ({
 
   const faqs = [
     {
-      q: '网站课程资源是如何发货与下载的？',
-      a: '所有团购和已购课程资源均存储于百度网盘、夸克网盘、123云盘与海外 Google Drive 高速线路中。在课程详情页兑换/购买后，下载链接与提取码将立即在页面解锁，同时同步至个人中心【我的订单】。',
+      q: t('faq.faq_q1'),
+      a: t('faq.faq_a1'),
     },
     {
-      q: '下载后的压缩包解压密码是什么？',
-      a: '全站通用解压密码为：yizhenshanhai 或 shanhai.studio（小写无空格）。部分特殊讲师分卷如有专属密码，会在下载链接旁标明。',
+      q: t('faq.faq_q2'),
+      a: t('faq.faq_a2'),
     },
     {
-      q: '解压提示“文件已损坏”或“分卷缺失”怎么办？',
-      a: '大体积 CG 高清课程均使用分卷压缩（如 .part1.rar, .part2.rar）。请确保下载完全部分卷文件并保存在同一文件夹下。推荐使用最新版 WinRAR 6.x 或 7-Zip 进行解压。若仍报错，请使用 WinRAR 自带的“工具 - 修复压缩文件”功能。',
+      q: t('faq.faq_q3'),
+      a: t('faq.faq_a3'),
     },
     {
-      q: '至尊会员 (Supreme VIP) 有哪些专属权益？',
-      a: '至尊会员享受全站所有课程 0 积分免费下载无限次、新发布大师课首发体验、高速网盘备用链接、专属私密求课加速通道以及 24 小时社群技术答疑服务。',
+      q: t('faq.faq_q4'),
+      a: t('faq.faq_a4'),
     },
     {
-      q: '如何联系客服或处理账号充值问题？',
-      a: '如遇支付延迟未到账或资源链接失效，可点击右下角微信图标扫描客服二维码，或在论坛【站务反馈】板块发帖，管理员将在 15 分钟内为您补单或更新补档。',
+      q: t('faq.faq_q5'),
+      a: t('faq.faq_a5'),
     },
   ];
 
@@ -83,9 +85,9 @@ export const FaqGuideModal: React.FC<FaqGuideModalProps> = ({
     setIsSubmitted(true);
     notificationService.sendPushNotification({
       type: 'system',
-      title: '🎯 求课需求已提交成功',
-      message: `已收到您关于《${courseName}》的求课心愿，我们将在 24 小时内寻源并更新进度！`,
-      timestamp: '刚刚',
+      title: '🎯 ' + t('faq.request_success_title'),
+      message: `${t('faq.request_success_desc')} (${courseName})`,
+      timestamp: 'Vừa xong',
     });
 
     setTimeout(() => {
@@ -110,11 +112,11 @@ export const FaqGuideModal: React.FC<FaqGuideModalProps> = ({
               <BookOpen className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="font-chinese text-base sm:text-lg font-bold text-white flex items-center gap-2">
-                <span>一帧山海 · 帮助与支持中心</span>
+              <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                <span>{t('faq.modal_title')}</span>
               </h2>
               <p className="text-[11px] text-slate-400">
-                FAQ, tutorials, course requests, and community support
+                {t('faq.modal_subtitle')}
               </p>
             </div>
           </div>
@@ -137,7 +139,7 @@ export const FaqGuideModal: React.FC<FaqGuideModalProps> = ({
             }`}
           >
             <HelpCircle className="w-4 h-4" />
-            <span>常见问题 (FAQ)</span>
+            <span>{t('faq.tab_faq')}</span>
           </button>
 
           <button
@@ -149,7 +151,7 @@ export const FaqGuideModal: React.FC<FaqGuideModalProps> = ({
             }`}
           >
             <Search className="w-4 h-4" />
-            <span>求教程专区</span>
+            <span>{t('faq.tab_request')}</span>
           </button>
 
           <button
@@ -161,7 +163,7 @@ export const FaqGuideModal: React.FC<FaqGuideModalProps> = ({
             }`}
           >
             <Video className="w-4 h-4" />
-            <span>网站解压与播放指南</span>
+            <span>{t('faq.tab_guide')}</span>
           </button>
 
           <button
@@ -173,7 +175,7 @@ export const FaqGuideModal: React.FC<FaqGuideModalProps> = ({
             }`}
           >
             <Heart className="w-4 h-4 text-rose-400" />
-            <span>赞助与支持</span>
+            <span>{t('faq.tab_sponsor')}</span>
           </button>
         </div>
 
@@ -188,7 +190,7 @@ export const FaqGuideModal: React.FC<FaqGuideModalProps> = ({
                   type="text"
                   value={faqSearch}
                   onChange={(e) => setFaqSearch(e.target.value)}
-                  placeholder="搜索问题，如：解压密码、网盘下载、分卷损坏..."
+                  placeholder={t('faq.search_placeholder')}
                   className="w-full bg-[#13242e] border border-slate-700 rounded-xl px-4 py-2.5 pl-10 text-xs text-white focus:outline-none focus:border-amber-400"
                 />
                 <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -231,10 +233,10 @@ export const FaqGuideModal: React.FC<FaqGuideModalProps> = ({
               <div className="bg-[#142833] border border-amber-500/20 rounded-xl p-4 mb-5">
                 <h3 className="font-bold text-amber-300 text-sm flex items-center gap-2">
                   <Sparkles className="w-4 h-4" />
-                  <span>提交您心仪的 CG 课程，我们来众筹寻源！</span>
+                  <span>{t('faq.request_banner_title')}</span>
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  支持 Coloso, Wingfox, CGMA, Gumroad, ArtStation 等海外大师课。收到需求后，我们将第一时间发起众筹采购。
+                  {t('faq.request_banner_subtitle')}
                 </p>
               </div>
 
@@ -243,23 +245,23 @@ export const FaqGuideModal: React.FC<FaqGuideModalProps> = ({
                   <div className="w-12 h-12 bg-emerald-950/80 text-emerald-400 rounded-full flex items-center justify-center mx-auto border border-emerald-500/40">
                     <Check className="w-6 h-6" />
                   </div>
-                  <h4 className="text-base font-bold text-white">需求提交成功！</h4>
+                  <h4 className="text-base font-bold text-white">{t('faq.request_success_title')}</h4>
                   <p className="text-xs text-slate-400">
-                    我们已记录您的求课意向，后续将在论坛和公告中通知进度。
+                    {t('faq.request_success_desc')}
                   </p>
                 </div>
               ) : (
                 <form onSubmit={handleSubmitRequest} className="space-y-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      课程名称 *
+                      {t('faq.course_name_label')}
                     </label>
                     <input
                       type="text"
                       required
                       value={courseName}
                       onChange={(e) => setCourseName(e.target.value)}
-                      placeholder="如：Coloso - 顶级动漫角色概念插画工作流"
+                      placeholder={t('faq.course_name_placeholder')}
                       className="w-full bg-[#13242e] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
                     />
                   </div>
@@ -267,33 +269,33 @@ export const FaqGuideModal: React.FC<FaqGuideModalProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        所属机构 / 平台
+                        {t('faq.platform_label')}
                       </label>
                       <select
                         value={platform}
                         onChange={(e) => setPlatform(e.target.value)}
                         className="w-full bg-[#13242e] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
                       >
-                        <option value="Coloso">Coloso (韩国大师课)</option>
-                        <option value="Wingfox">Wingfox (翼狐)</option>
-                        <option value="CGMA">CGMA</option>
-                        <option value="Underpaint">Underpaint Academy</option>
-                        <option value="Gumroad">Gumroad 独立画师</option>
-                        <option value="Domestika">Domestika</option>
-                        <option value="FastCampus">FastCampus</option>
-                        <option value="Other">其他机构</option>
+                        <option value="Coloso">{t('faq.platform_coloso')}</option>
+                        <option value="Wingfox">{t('faq.platform_wingfox')}</option>
+                        <option value="CGMA">{t('faq.platform_cgma')}</option>
+                        <option value="Underpaint">{t('faq.platform_underpaint')}</option>
+                        <option value="Gumroad">{t('faq.platform_gumroad')}</option>
+                        <option value="Domestika">{t('faq.platform_domestika')}</option>
+                        <option value="FastCampus">{t('faq.platform_fastcampus')}</option>
+                        <option value="Other">{t('faq.platform_other')}</option>
                       </select>
                     </div>
 
                     <div>
                       <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        讲师名字 (可选)
+                        {t('faq.instructor_label')}
                       </label>
                       <input
                         type="text"
                         value={instructor}
                         onChange={(e) => setInstructor(e.target.value)}
-                        placeholder="如：Mogun, Fuwari, Kim Jung Gi"
+                        placeholder={t('faq.instructor_placeholder')}
                         className="w-full bg-[#13242e] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
                       />
                     </div>
@@ -301,13 +303,13 @@ export const FaqGuideModal: React.FC<FaqGuideModalProps> = ({
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      官方原链接 (可选)
+                      {t('faq.url_label')}
                     </label>
                     <input
                       type="url"
                       value={requestLink}
                       onChange={(e) => setRequestLink(e.target.value)}
-                      placeholder="https://coloso.global/..."
+                      placeholder={t('faq.url_placeholder')}
                       className="w-full bg-[#13242e] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
                     />
                   </div>
@@ -318,7 +320,7 @@ export const FaqGuideModal: React.FC<FaqGuideModalProps> = ({
                       className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-bold text-xs shadow-lg transition-transform hover:scale-105 flex items-center gap-1.5"
                     >
                       <Send className="w-3.5 h-3.5" />
-                      <span>立即提交心愿</span>
+                      <span>{t('faq.submit_request_btn')}</span>
                     </button>
                   </div>
                 </form>
@@ -334,9 +336,9 @@ export const FaqGuideModal: React.FC<FaqGuideModalProps> = ({
                   <div className="w-8 h-8 rounded-lg bg-cyan-900/40 text-cyan-400 flex items-center justify-center mb-2 font-bold">
                     1
                   </div>
-                  <h4 className="font-bold text-slate-100 text-sm">完整下载分卷</h4>
+                  <h4 className="font-bold text-slate-100 text-sm">{t('faq.step1_title')}</h4>
                   <p className="text-slate-400 text-xs mt-1">
-                    如课程包含 part1 ~ part5，必须全部下载完成并放在同一文件夹中，不能缺漏或重命名。
+                    {t('faq.step1_desc')}
                   </p>
                 </div>
 
@@ -344,9 +346,9 @@ export const FaqGuideModal: React.FC<FaqGuideModalProps> = ({
                   <div className="w-8 h-8 rounded-lg bg-amber-900/40 text-amber-400 flex items-center justify-center mb-2 font-bold">
                     2
                   </div>
-                  <h4 className="font-bold text-slate-100 text-sm">解压软件推荐</h4>
+                  <h4 className="font-bold text-slate-100 text-sm">{t('faq.step2_title')}</h4>
                   <p className="text-slate-400 text-xs mt-1">
-                    Windows 推荐 WinRAR 6.2+ 或 7-Zip；Mac 推荐使用 Keka 或 The Unarchiver。系统自带解压可能报错。
+                    {t('faq.step2_desc')}
                   </p>
                 </div>
 
@@ -354,9 +356,9 @@ export const FaqGuideModal: React.FC<FaqGuideModalProps> = ({
                   <div className="w-8 h-8 rounded-lg bg-purple-900/40 text-purple-400 flex items-center justify-center mb-2 font-bold">
                     3
                   </div>
-                  <h4 className="font-bold text-slate-100 text-sm">视频播放器</h4>
+                  <h4 className="font-bold text-slate-100 text-sm">{t('faq.step3_title')}</h4>
                   <p className="text-slate-400 text-xs mt-1">
-                    推荐使用 PotPlayer 或 VLC Media Player，完美支持 4K 10-bit HDR、多轨韩语/英语及中文字幕外挂。
+                    {t('faq.step3_desc')}
                   </p>
                 </div>
               </div>
@@ -364,14 +366,14 @@ export const FaqGuideModal: React.FC<FaqGuideModalProps> = ({
               <div className="bg-[#10222c] p-4 rounded-xl border border-cyan-500/20 flex items-start gap-3">
                 <Key className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-bold text-slate-100 text-xs">默认全站解压密码：</div>
+                  <div className="font-bold text-slate-100 text-xs">{t('faq.default_pwd_label')}</div>
                   <div className="mt-1 flex items-center gap-2">
                     <code className="px-2.5 py-1 bg-black/50 text-amber-300 font-mono text-sm rounded border border-amber-500/30 select-all">
-                      yizhenshanhai
+                      ggcstudio
                     </code>
-                    <span className="text-[11px] text-slate-400">或</span>
+                    <span className="text-[11px] text-slate-400">{t('faq.or_text')}</span>
                     <code className="px-2.5 py-1 bg-black/50 text-amber-300 font-mono text-sm rounded border border-amber-500/30 select-all">
-                      shanhai.studio
+                      ggc.studio
                     </code>
                   </div>
                 </div>
@@ -386,11 +388,11 @@ export const FaqGuideModal: React.FC<FaqGuideModalProps> = ({
                 <Heart className="w-8 h-8 fill-rose-400" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white font-chinese">
-                  感谢每一位与山海同行的创作者
+                <h3 className="text-lg font-bold text-white">
+                  {t('faq.sponsor_title')}
                 </h3>
                 <p className="text-xs text-slate-400 max-w-md mx-auto mt-1 leading-relaxed">
-                  您的每一次赞助与开通会员，都直接用于海外课程众筹采购、高速服务器与网盘存储维护。
+                  {t('faq.sponsor_desc')}
                 </p>
               </div>
 
@@ -402,7 +404,7 @@ export const FaqGuideModal: React.FC<FaqGuideModalProps> = ({
                   }}
                   className="px-6 py-2.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-bold text-xs shadow-lg transition-transform hover:scale-105"
                 >
-                  开通至尊 VIP 会员
+                  {t('faq.upgrade_vip_btn')}
                 </button>
               </div>
             </div>

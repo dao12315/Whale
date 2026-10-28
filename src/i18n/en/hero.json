@@ -1,0 +1,16 @@
+{
+  "title": "GROUP BUYING & DIRECT SALES • SPECIAL COURSES",
+  "subtitle": "Curated CG masterclasses directory · Full curriculum and high-quality graphics resources",
+  "tab_paid": "Specialized Courses (VIP)",
+  "tab_paid_badge": "VIP & Drive",
+  "tab_free": "Community & Preview Courses",
+  "tab_free_badge": "Watch Now",
+  "catalog_btn": "COURSE CATALOG",
+  "online_status": "System online: Synchronizing comments",
+  "syncing_courses": "Syncing course catalog from Backend API...",
+  "empty_title": "No courses found matching \"{query}\"",
+  "empty_desc": "Try searching with other keywords like Blender, DaVinci, [484] or clear filters to view all courses.",
+  "empty_action": "Clear search filter",
+  "free_banner_title": "Open & Community Courses:",
+  "free_banner_desc": "All registered learners can watch lectures, download practice assets and HD tutorials freely."
+}

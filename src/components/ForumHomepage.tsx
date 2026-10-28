@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ForumBoard, ForumPost, Language } from '../types';
-import { FORUM_BOARDS, INITIAL_FORUM_POSTS, MORE_FORUM_POSTS } from '../data/forumData';
+import { postsApi } from '../services/postsApi';
 import { useAuth } from '../context/AuthContext';
 import { useRealtime } from '../context/RealtimeContext';
 import { sound } from '../services/sound';
 import { notificationService } from '../services/notificationService';
+import { useI18n } from '../i18n';
 import {
   FileText,
   Flame,
@@ -24,6 +25,8 @@ import {
   Sparkles,
   ChevronRight,
   ShieldAlert,
+  Shield,
+  Trash2,
   X,
   Upload,
 } from 'lucide-react';
@@ -43,6 +46,23 @@ export const ForumHomepage: React.FC<ForumHomepageProps> = ({
 }) => {
   const { user, isAuthenticated } = useAuth();
   const { forumPosts, addForumComment, likeForumPost } = useRealtime();
+  const { t } = useI18n();
+
+  // Boards fetched from PostgreSQL Database
+  const [boards, setBoards] = useState<ForumBoard[]>([]);
+
+  useEffect(() => {
+    postsApi
+      .getBoards()
+      .then((res) => {
+        if (res?.data && res.data.length > 0) {
+          setBoards(res.data);
+        }
+      })
+      .catch((err) => {
+        console.log('[ForumHomepage] Dùng fallback boards:', err?.message);
+      });
+  }, []);
 
   // Active filter category on left sidebar
   const [activeCategory, setActiveCategory] = useState<string>('summary');
@@ -52,6 +72,7 @@ export const ForumHomepage: React.FC<ForumHomepageProps> = ({
 
   // Local state for load more extra dynamically generated posts
   const [extraPosts, setExtraPosts] = useState<ForumPost[]>([]);
+  const [page, setPage] = useState(2);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [forumSearch, setForumSearch] = useState('');
@@ -68,10 +89,110 @@ export const ForumHomepage: React.FC<ForumHomepageProps> = ({
   // Followed authors
   const [followedAuthors, setFollowedAuthors] = useState<Set<string>>(new Set());
 
+  // Moderation state & filter tab
+  const isAdmin = user?.role === 'ADMIN';
+  const [postFilterTab, setPostFilterTab] = useState<'all' | 'my' | 'pending'>('all');
+  const [pendingPosts, setPendingPosts] = useState<ForumPost[]>([]);
+
+  const fetchPendingPosts = () => {
+    if (isAdmin) {
+      postsApi
+        .getPendingPosts()
+        .then((res) => {
+          if (res?.data) {
+            setPendingPosts(res.data);
+          }
+        })
+        .catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchPendingPosts();
+    }
+  }, [isAdmin]);
+
+  const handleApprove = async (postId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    sound.playSuccess();
+    try {
+      await postsApi.approvePost(postId);
+      setPendingPosts((prev) => prev.filter((p) => p.id !== postId));
+      setExtraPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? { ...p, status: 'PUBLISHED', moderationStatus: 'APPROVED', moderationBadge: '✨ Đã duyệt bởi Admin' }
+            : p
+        )
+      );
+      notificationService.sendPushNotification({
+        type: 'system',
+        title: 'Duyệt bài thành công! ✅',
+        message: 'Bài viết đã được phê duyệt và xuất bản công khai.',
+        timestamp: 'Vừa xong',
+      });
+    } catch (err: any) {
+      console.warn('[Forum] Lỗi duyệt bài:', err?.message);
+    }
+  };
+
+  const handleReject = async (postId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    sound.playClick();
+    try {
+      await postsApi.rejectPost(postId, 'Nội dung chưa đạt quy định cộng đồng.');
+      setPendingPosts((prev) => prev.filter((p) => p.id !== postId));
+      setExtraPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? { ...p, status: 'ARCHIVED', moderationStatus: 'REJECTED', moderationBadge: '🚫 Đã từ chối' }
+            : p
+        )
+      );
+      notificationService.sendPushNotification({
+        type: 'system',
+        title: 'Đã từ chối bài viết',
+        message: 'Bài viết đã được đánh dấu từ chối.',
+        timestamp: 'Vừa xong',
+      });
+    } catch (err: any) {
+      console.warn('[Forum] Lỗi từ chối bài:', err?.message);
+    }
+  };
+
+  const handleDelete = async (postId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    sound.playClick();
+    try {
+      await postsApi.deletePost(postId);
+      setPendingPosts((prev) => prev.filter((p) => p.id !== postId));
+      setExtraPosts((prev) => prev.filter((p) => p.id !== postId));
+      notificationService.sendPushNotification({
+        type: 'system',
+        title: 'Đã xóa bài viết',
+        message: 'Bài viết đã được gỡ bỏ khỏi hệ thống.',
+        timestamp: 'Vừa xong',
+      });
+    } catch (err: any) {
+      console.warn('[Forum] Lỗi xóa bài:', err?.message);
+    }
+  };
+
   // Combined posts: real-time shared posts + extra loaded
   const allPosts = React.useMemo(() => {
-    return [...forumPosts, ...extraPosts];
-  }, [forumPosts, extraPosts]);
+    if (postFilterTab === 'pending') {
+      return pendingPosts;
+    }
+    const combined = [...forumPosts, ...extraPosts];
+    if (postFilterTab === 'my' && user) {
+      return combined.filter((p) => p.authorId === user.id || p.authorName === user.name);
+    }
+    if (postFilterTab === 'all') {
+      return combined.filter((p) => p.status !== 'DRAFT');
+    }
+    return combined;
+  }, [forumPosts, extraPosts, pendingPosts, postFilterTab, user]);
 
   const activeViewingPost = React.useMemo(() => {
     if (!viewingPostId) return null;
@@ -111,45 +232,34 @@ export const ForumHomepage: React.FC<ForumHomepageProps> = ({
   };
 
   // Load more posts handler requested by user:
-  // "thêm tab Forum homepage là các bài viết chức là load more cho các bài viết tiếp theo"
   const handleLoadMore = () => {
     if (isLoadingMore || !hasMore) return;
     setIsLoadingMore(true);
     sound.playClick();
 
-    setTimeout(() => {
-      // Append more forum posts
-      setExtraPosts((prev) => {
-        const existingIds = new Set([...allPosts.map((p) => p.id), ...prev.map((p) => p.id)]);
-        const newPosts = MORE_FORUM_POSTS.filter((p) => !existingIds.has(p.id));
-        if (newPosts.length === 0) {
-          // Generate realistic extra community posts dynamically
-          const extraPost: ForumPost = {
-            id: `post-dyn-${Date.now()}`,
-            boardId: 'board-inspiration',
-            authorId: `user-sim-${Date.now()}`,
-            authorName: 'Thiết Kế Sư Dạ Lam',
-            authorBadge: '⭐ Member',
-            authorAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
-            authorTier: 'gold',
-            updatedTimeAgo: 'Vừa xong',
-            readsCount: 154,
-            likesCount: 29,
-            commentsCount: 6,
-            title: '[Chia sẻ] Trải nghiệm dùng máy quay Sony A7S3 quay lễ rước kiệu đêm: Đánh giá độ nhạy sáng ISO',
-            content: 'Tại dải ISO 12800 cơ chế Dual Native ISO phát huy tác dụng cực tốt khi bắt trọn ánh lửa đuốc mà không cần thêm đèn trợ sáng phụ.',
-            images: ['https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80'],
-            tags: ['Sony A7S3', 'Night Shoot', 'Low Light', 'Review'],
-            category: 'summary',
-          };
-          return [...prev, extraPost];
+    postsApi
+      .getPosts({ page, limit: 10, boardId: selectedBoardId || undefined })
+      .then((res) => {
+        if (res?.data && res.data.length > 0) {
+          setExtraPosts((prev) => {
+            const existingIds = new Set(prev.map((p) => p.id));
+            const newItems = res.data.filter((p) => !existingIds.has(p.id));
+            return [...prev, ...newItems];
+          });
+          setPage((p) => p + 1);
+          if (res.data.length < 10) setHasMore(false);
+        } else {
+          setHasMore(false);
         }
-        return [...prev, ...newPosts];
+      })
+      .catch((err) => {
+        console.log('[ForumHomepage] Lỗi khi load more:', err?.message);
+        setHasMore(false);
+      })
+      .finally(() => {
+        setIsLoadingMore(false);
+        sound.playNotification();
       });
-
-      setIsLoadingMore(false);
-      sound.playNotification();
-    }, 700);
   };
 
   // Handle local comment image upload from machine
@@ -175,6 +285,17 @@ export const ForumHomepage: React.FC<ForumHomepageProps> = ({
     if (!postCommentInput.trim() && !commentImageUpload) return;
 
     addForumComment(activeViewingPost.id, postCommentInput, commentImageUpload || undefined);
+
+    // Ghi comment vào PostgreSQL qua REST API
+    postsApi
+      .createComment(activeViewingPost.id, {
+        text: postCommentInput.trim(),
+        image: commentImageUpload || undefined,
+      })
+      .catch((err) => {
+        console.log('[ForumHomepage] Lưu comment vào PostgreSQL notice:', err?.message);
+      });
+
     setPostCommentInput('');
     setCommentImageUpload(null);
     sound.playSuccess();
@@ -272,7 +393,7 @@ export const ForumHomepage: React.FC<ForumHomepageProps> = ({
 
       {/* 1. TOP FORUM BOARDS (Exact replica of the 5 cards from Screenshot 4) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {FORUM_BOARDS.map((board) => {
+        {boards.map((board) => {
           const isSelected = selectedBoardId === board.id;
           return (
             <div
@@ -342,7 +463,7 @@ export const ForumHomepage: React.FC<ForumHomepageProps> = ({
           <div className="flex items-center gap-2 text-xs text-amber-300">
             <span>Đang lọc theo chuyên mục:</span>
             <span className="font-bold underline">
-              {FORUM_BOARDS.find((b) => b.id === selectedBoardId)?.title}
+              {boards.find((b) => b.id === selectedBoardId)?.title}
             </span>
           </div>
           <button
@@ -379,7 +500,11 @@ export const ForumHomepage: React.FC<ForumHomepageProps> = ({
                   }`}
                 >
                   <span className="truncate">
-                    {item.labelVi} ({item.labelEn})
+                    {item.id === 'summary'
+                      ? t('forum.category_summary')
+                      : item.id === 'qa'
+                      ? t('forum.category_qa')
+                      : t('forum.category_voting')}
                   </span>
                   {isActive && (
                     <span className="w-2.5 h-2.5 rounded-full bg-[#f59e0b] shadow-[0_0_10px_rgba(245,158,11,1)] shrink-0 ml-2"></span>
@@ -400,13 +525,13 @@ export const ForumHomepage: React.FC<ForumHomepageProps> = ({
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                  <span>Thảo Luận & Chia Sẻ Bài Viết</span>
+                  <span>{t('forum.title')}</span>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30">
                     +5 Credits
                   </span>
                 </h3>
                 <p className="text-[11px] text-slate-300 mt-0.5">
-                  Tải ảnh trực tiếp từ máy tính cá nhân, chia sẻ kiến thức, tài nguyên và đặt câu hỏi
+                  {t('forum.subtitle')}
                 </p>
               </div>
             </div>
@@ -425,7 +550,7 @@ export const ForumHomepage: React.FC<ForumHomepageProps> = ({
                 className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-slate-950 font-bold text-xs shadow-md hover:scale-[1.02] transition-all flex items-center gap-1.5"
               >
                 <PlusCircle className="w-4 h-4" />
-                <span>+ Viết bài (Tải ảnh từ máy)</span>
+                <span>{t('forum.btn_create_post')}</span>
               </button>
 
               <button
@@ -441,6 +566,72 @@ export const ForumHomepage: React.FC<ForumHomepageProps> = ({
               </button>
             </div>
           </div>
+
+          {/* Sub-tab Filter Bar: Tất cả, Bài của tôi, Chờ duyệt */}
+          <div className="flex items-center justify-between border-b border-[#1c3848] pb-3 pt-1">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  sound.playClick();
+                  setPostFilterTab('all');
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  postFilterTab === 'all'
+                    ? 'bg-amber-500 text-slate-950 shadow-md'
+                    : 'text-slate-400 hover:text-white hover:bg-[#142834]'
+                }`}
+              >
+                {t('forum.tab_all_posts')}
+              </button>
+
+              {user && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    sound.playClick();
+                    setPostFilterTab('my');
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    postFilterTab === 'my'
+                      ? 'bg-amber-500 text-slate-950 shadow-md'
+                      : 'text-slate-400 hover:text-white hover:bg-[#142834]'
+                  }`}
+                >
+                  {t('forum.tab_my_posts')}
+                </button>
+              )}
+
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    sound.playClick();
+                    setPostFilterTab('pending');
+                    fetchPendingPosts();
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    postFilterTab === 'pending'
+                      ? 'bg-purple-600 text-white shadow-md'
+                      : 'text-purple-300 hover:text-white hover:bg-[#201836]'
+                  }`}
+                >
+                  <Shield className="w-3.5 h-3.5" />
+                  <span>{t('forum.tab_pending_moderation')}</span>
+                  {pendingPosts.length > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-mono">
+                      {pendingPosts.length}
+                    </span>
+                  )}
+                </button>
+              )}
+            </div>
+
+            <span className="text-[11px] text-slate-400 font-mono">
+              {filteredPosts.length} bài viết
+            </span>
+          </div>
+
           {filteredPosts.length === 0 ? (
             <div className="text-center py-16 bg-[#102029]/80 rounded-xl border border-slate-800 space-y-2">
               <p className="text-sm text-slate-300">Không có bài viết nào trong mục này</p>
@@ -453,14 +644,17 @@ export const ForumHomepage: React.FC<ForumHomepageProps> = ({
           ) : (
             filteredPosts.map((post) => {
               const isFollowed = followedAuthors.has(post.authorName);
+              const isPending = post.status === 'DRAFT' || post.moderationStatus === 'PENDING';
+              const isRejected = post.status === 'ARCHIVED' || post.moderationStatus === 'REJECTED';
+
               return (
                 <div
                   key={post.id}
                   onClick={() => setViewingPostId(post.id)}
-                  className="p-4 sm:p-5 rounded-xl bg-[#102029] hover:bg-[#132530] border border-[#1c3544] hover:border-amber-500/40 shadow-xl transition-all duration-200 cursor-pointer space-y-3.5 group"
+                  className="p-4 sm:p-5 rounded-xl bg-[#102029] hover:bg-[#132530] border border-[#1c3544] hover:border-amber-500/40 shadow-xl transition-all duration-200 cursor-pointer space-y-3.5 group relative"
                 >
                   {/* Author Header Row matching screenshot */}
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       {/* Avatar */}
                       <img
@@ -478,6 +672,20 @@ export const ForumHomepage: React.FC<ForumHomepageProps> = ({
                               {post.authorBadge}
                             </span>
                           )}
+                          {/* Moderation Badge */}
+                          {isPending ? (
+                            <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/40 font-semibold flex items-center gap-1">
+                              ⏳ {t('forum.moderation_status_pending')}
+                            </span>
+                          ) : isRejected ? (
+                            <span className="text-[10px] bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-full border border-rose-500/40 font-semibold flex items-center gap-1">
+                              🚫 {t('forum.moderation_status_rejected')}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] bg-emerald-500/15 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/30 font-medium flex items-center gap-1">
+                              ✨ {t('forum.moderation_status_approved')}
+                            </span>
+                          )}
                         </div>
                         <div className="text-[11px] text-slate-400 font-light mt-0.5">
                           {post.updatedTimeAgo} &bull; {post.readsCount} reads
@@ -485,8 +693,44 @@ export const ForumHomepage: React.FC<ForumHomepageProps> = ({
                       </div>
                     </div>
 
-                    {/* Right Action Buttons matching screenshot: ♡ Attention & ✉ Private message */}
+                    {/* Right Action Buttons */}
                     <div className="flex items-center gap-2">
+                      {/* Admin Moderation Actions */}
+                      {isAdmin && (
+                        <div className="flex items-center gap-1.5 mr-2" onClick={(e) => e.stopPropagation()}>
+                          {isPending && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleApprove(post.id, e)}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold shadow transition-all flex items-center gap-1"
+                              title="Duyệt bài viết này"
+                            >
+                              <Check className="w-3 h-3" />
+                              <span>{t('forum.btn_approve')}</span>
+                            </button>
+                          )}
+                          {!isRejected && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleReject(post.id, e)}
+                              className="px-2 py-1 rounded-lg bg-orange-600/80 hover:bg-orange-500 text-white text-[11px] font-semibold transition-all flex items-center gap-1"
+                              title="Từ chối bài viết"
+                            >
+                              <X className="w-3 h-3" />
+                              <span>{t('forum.btn_reject')}</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => handleDelete(post.id, e)}
+                            className="px-2 py-1 rounded-lg bg-rose-600/80 hover:bg-rose-500 text-white text-[11px] transition-all"
+                            title="Xóa bài viết vĩnh viễn"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+
                       <button
                         onClick={(e) => handleToggleFollow(post.authorName, e)}
                         className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
@@ -720,7 +964,7 @@ export const ForumHomepage: React.FC<ForumHomepageProps> = ({
                 type="text"
                 value={forumSearch}
                 onChange={(e) => setForumSearch(e.target.value)}
-                placeholder="Tìm bài viết, tác giả..."
+                placeholder={t('forum.search_placeholder')}
                 className="w-full bg-[#132530] text-slate-200 text-xs rounded-lg pl-3 pr-8 py-2 border border-[#223d4e] focus:border-amber-400 focus:outline-none"
               />
               <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -731,10 +975,10 @@ export const ForumHomepage: React.FC<ForumHomepageProps> = ({
           <div className="p-4 rounded-xl bg-[#102029] border border-[#1e3746] space-y-2 text-xs text-slate-400">
             <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-xs">
               <ShieldAlert className="w-4 h-4 shrink-0" />
-              <span>Nội quy đàm đạo 一帧山海</span>
+              <span>{t('forum.rules_title')}</span>
             </div>
             <p className="text-[11px] leading-relaxed">
-              Diễn đàn khuyến khích chia sẻ kinh nghiệm hậu kỳ, file asset, brush và bài học phi vật thể. Mọi hành vi mua bán tiền mặt ngoài nền tảng đều bị nghiêm cấm để bảo vệ an toàn cho thành viên.
+              {t('forum.rules_desc')}
             </p>
           </div>
         </div>

@@ -1,12 +1,15 @@
 import React from 'react';
 import { Mail, MessageCircle, Send, QrCode } from 'lucide-react';
 import { Language } from '../types';
+import { useI18n } from '../i18n';
 
 interface FooterProps {
-  currentLang: Language;
+  currentLang?: Language;
 }
 
-export const Footer: React.FC<FooterProps> = ({ currentLang }) => {
+export const Footer: React.FC<FooterProps> = () => {
+  const { t } = useI18n();
+
   return (
     <footer className="relative mt-20 bg-stone-100 dark:bg-[#081216] border-t border-stone-200 dark:border-[#182c36] text-stone-600 dark:text-slate-400 overflow-hidden transition-colors">
       {/* Background ink mountain silhouette texture */}
@@ -20,13 +23,11 @@ export const Footer: React.FC<FooterProps> = ({ currentLang }) => {
               <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-600 border border-amber-400/50 flex items-center justify-center shadow-md">
                 <span className="font-sans font-black text-xs text-slate-950">GGC</span>
               </div>
-              <span className="font-cinzel text-lg font-bold text-stone-900 dark:text-slate-100">GGC STUDIO</span>
+              <span className="font-cinzel text-lg font-bold text-stone-900 dark:text-slate-100">{t('footer.about_title')}</span>
             </div>
 
             <p className="text-xs text-stone-600 dark:text-slate-400 leading-relaxed max-w-sm">
-              {currentLang === 'vi'
-                ? 'GGC Studio là nền tảng chia sẻ khóa học và tài nguyên sinh ra vì cộng đồng nghệ sĩ CG, nhà làm phim và họa sĩ đồ họa. Thông qua cơ chế khóa miễn phí và khóa trả phí (donate), chúng tôi giúp mọi người tiếp cận tư liệu quốc tế chất lượng cao dễ dàng và tiết kiệm nhất.'
-                : 'GGC Studio is a premier creative resource and masterclass sharing platform born for digital artists, 3D modelers, and filmmakers. We bring world-class tutorials, assets, and knowledge within reach for everyone.'}
+              {t('footer.about_desc')}
             </p>
           </div>
 
@@ -34,26 +35,26 @@ export const Footer: React.FC<FooterProps> = ({ currentLang }) => {
           <div className="lg:col-span-5 space-y-4">
             {/* Friendly links */}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-700 dark:text-slate-300">
-              <a href="#links" className="hover:text-amber-300 transition-colors">
-                Friend link application
+              <a href="#catalog" className="hover:text-amber-300 transition-colors">
+                {t('footer.link_catalog')}
               </a>
               <span>•</span>
-              <a href="#disclaimer" className="hover:text-amber-300 transition-colors">
-                Disclaimer
+              <a href="#forum" className="hover:text-amber-300 transition-colors">
+                {t('footer.link_forum')}
               </a>
               <span>•</span>
-              <a href="#ads" className="hover:text-amber-300 transition-colors">
-                Advertising cooperation
+              <a href="#vip" className="hover:text-amber-300 transition-colors">
+                {t('footer.link_vip')}
               </a>
               <span>•</span>
-              <a href="#about" className="hover:text-amber-300 transition-colors">
-                About us
+              <a href="#support" className="hover:text-amber-300 transition-colors">
+                {t('footer.link_support')}
               </a>
             </div>
 
             {/* Copyright */}
             <p className="text-[11px] text-slate-500 leading-normal">
-              Copyright &copy; 2026 &middot; GGC Studio &middot; All Rights Reserved. Creative Masterclasses & Digital Assets.
+              {t('footer.copyright')} &middot; {t('footer.disclaimer')}
             </p>
 
             {/* Social Icons row */}
@@ -145,11 +146,11 @@ export const Footer: React.FC<FooterProps> = ({ currentLang }) => {
                   <circle cx="80" cy="75" r="3" />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <span className="text-[8px] font-black bg-white px-1 rounded shadow text-emerald-700">微信</span>
+                  <span className="text-[8px] font-black bg-white px-1 rounded shadow text-amber-600">GGC</span>
                 </div>
               </div>
               <span className="text-[10px] text-slate-600 mt-2 text-center leading-tight">
-                Scan the code to add WeChat
+                GGC Studio Community QR
               </span>
             </div>
           </div>

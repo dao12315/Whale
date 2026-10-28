@@ -2,13 +2,29 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, MembershipTier } from '../types';
 import { notificationService } from '../services/notificationService';
 import { sound } from '../services/sound';
+import { authApi } from '../services/authApi';
 import confetti from 'canvas-confetti';
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  loginAs: (preset: 'free' | 'gold' | 'supreme') => void;
-  loginWithCredentials: (email: string, name?: string) => void;
+  loginAs: (preset: 'admin' | 'user' | string) => Promise<void> | void;
+  loginWithCredentials?: (email: string, name?: string) => void;
+  loginWithRealAccount: (
+    email: string,
+    password: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  registerWithRealAccount: (
+    email: string,
+    password: string,
+    name?: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: (
+    googleEmail?: string,
+    idToken?: string,
+    name?: string,
+    avatarUrl?: string
+  ) => Promise<{ success: boolean; isNewUser?: boolean; generatedPassword?: string }>;
   logout: () => void;
   upgradeTier: (tier: MembershipTier) => void;
   addCredits: (amount: number) => void;
@@ -19,99 +35,143 @@ interface AuthContextType {
   hasPurchased: (courseId: string) => boolean;
 }
 
+function isTokenExpired(token: string): boolean {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const payload = JSON.parse(atob(parts[1]));
+    if (!payload.exp) return false;
+    // buffer 30 seconds
+    return payload.exp * 1000 < Date.now() + 30000;
+  } catch {
+    return true;
+  }
+}
+
 const DEFAULT_USERS: Record<string, User> = {
-  supreme: {
-    id: 'user-meohamchoi',
-    name: 'meohamchoi 🦝',
-    email: 'fluoxetine1910@gmail.com',
+  admin: {
+    id: 'usr_admin',
+    name: 'Tổng Quản Trị (Admin)',
+    email: 'admin@shanhai.studio',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
-    tier: 'supreme',
-    credits: 320,
-    purchasedCourseIds: ['course-478'],
-    wishlistCourseIds: ['course-480'],
-    roleBadge: 'Supreme Member • 30% Off',
-    joinedDate: '2024-11-12',
-    points: 489,
-    balance: 0,
-    bio: "This guy is lazy and doesn't write anything...",
-    heat: 77,
-    dailyCheckedIn: false,
+    tier: 'admin',
+    role: 'ADMIN',
+    googleEmail: 'admin.whale@gmail.com',
+    credits: 99999,
+    purchasedCourseIds: ['course-484', 'course-480'],
+    wishlistCourseIds: [],
+    roleBadge: '👑 Quản Trị Viên (Admin)',
+    joinedDate: '2024-01-01',
+    points: 9999,
+    balance: 50000000,
+    bio: 'Quản trị viên toàn quyền hệ thống Whale / GGC Studio.',
+    heat: 999,
+    dailyCheckedIn: true,
     stats: {
-      comments: 7,
-      articles: 0,
-      posts: 2,
-      heat: 77,
-      collections: 0,
-      fans: 0,
+      comments: 99,
+      articles: 15,
+      posts: 28,
+      heat: 999,
+      collections: 50,
+      fans: 1200,
     },
   },
-  gold: {
-    id: 'user-gold-curr',
-    name: 'Lê Cẩm Tú (Li Jinxiu)',
-    email: 'jinxiu.li@creators.org',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&auto=format&fit=crop&q=80',
-    tier: 'gold',
-    credits: 150,
+  user: {
+    id: 'user-free-curr',
+    name: 'Nguyễn Minh Khang',
+    email: 'user@shanhai.studio',
+    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
+    tier: 'free',
+    role: 'USER',
+    credits: 100,
     purchasedCourseIds: [],
-    wishlistCourseIds: ['course-479', 'course-480'],
-    roleBadge: 'Gold Member • 10% Off',
-    joinedDate: '2025-01-08',
-    points: 210,
+    wishlistCourseIds: [],
+    roleBadge: '👤 Học Viên (User)',
+    joinedDate: '2025-03-01',
+    points: 100,
     balance: 0,
-    bio: 'Digital artist & traditional folk culture enthusiast.',
-    heat: 42,
-    dailyCheckedIn: true,
+    bio: 'Thành viên học tập Digital Art & CG Masterclasses.',
+    heat: 30,
+    dailyCheckedIn: false,
     stats: {
       comments: 3,
       articles: 0,
       posts: 1,
-      heat: 42,
+      heat: 30,
       collections: 0,
       fans: 0,
     },
   },
-  free: {
-    id: 'user-free-curr',
-    name: 'Nguyễn Minh Khang',
-    email: 'khang.nguyen@graphic.dev',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
-    tier: 'free',
-    credits: 60,
-    purchasedCourseIds: [],
-    wishlistCourseIds: [],
-    roleBadge: 'Standard Member',
-    joinedDate: '2025-03-01',
-    points: 80,
-    balance: 0,
-    bio: 'Learning illustration and CGI.',
-    heat: 15,
-    dailyCheckedIn: false,
-    stats: {
-      comments: 1,
-      articles: 0,
-      posts: 0,
-      heat: 15,
-      collections: 0,
-      fans: 0,
-    },
-  }
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
-    if (typeof window === 'undefined') return DEFAULT_USERS.supreme;
+    if (typeof window === 'undefined') return null;
     try {
       const stored = localStorage.getItem('shanhai_auth_user');
-      if (stored) {
-        return JSON.parse(stored);
+      const token =
+        localStorage.getItem('whale_access_token') ||
+        sessionStorage.getItem('whale_access_token') ||
+        localStorage.getItem('shanhai_access_token');
+      if (stored && token) {
+        // Kiểm tra xem token còn hạn không khi vừa khởi tạo
+        if (!isTokenExpired(token)) {
+          return JSON.parse(stored);
+        }
       }
-      return DEFAULT_USERS.supreme; // Default logged in for pleasant review experience
+      return null;
     } catch {
-      return DEFAULT_USERS.supreme;
+      return null;
     }
   });
+
+  // Kiểm tra tính hợp lệ của token khi khởi chạy và tự động refresh nếu cần
+  useEffect(() => {
+    const verifyAndRestoreSession = async () => {
+      if (typeof window === 'undefined') return;
+      const token =
+        localStorage.getItem('whale_access_token') ||
+        sessionStorage.getItem('whale_access_token') ||
+        localStorage.getItem('shanhai_access_token');
+
+      if (!token) return;
+
+      if (isTokenExpired(token)) {
+        console.log('[Auth] Access Token đã hết hạn khi mở lại trình duyệt. Đang tự động làm mới qua Refresh Token...');
+        try {
+          const res = await authApi.getMe();
+          if (res?.data?.user) {
+            const mapped = authApi.mapApiUserToFrontend(res.data.user);
+            setUser(mapped);
+            console.log('[Auth] Đã khôi phục phiên đăng nhập thành công!');
+          }
+        } catch {
+          console.warn('[Auth] Phiên đăng nhập đã hết hạn hoàn toàn. Vui lòng đăng nhập lại.');
+          setUser(null);
+          localStorage.removeItem('shanhai_auth_user');
+          localStorage.removeItem('whale_access_token');
+          localStorage.removeItem('shanhai_access_token');
+        }
+      } else {
+        // Token còn hạn, đồng bộ thông tin mới nhất từ máy chủ
+        authApi
+          .getMe()
+          .then((res) => {
+            if (res?.data?.user) {
+              const mapped = authApi.mapApiUserToFrontend(res.data.user);
+              setUser(mapped);
+            }
+          })
+          .catch(() => {
+            // Nếu offline, tiếp tục dùng cached user trong localStorage
+          });
+      }
+    };
+
+    verifyAndRestoreSession();
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -123,48 +183,164 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user]);
 
-  const loginAs = (preset: 'free' | 'gold' | 'supreme') => {
-    const selected = DEFAULT_USERS[preset];
-    setUser(selected);
-    sound.playSuccess();
-    notificationService.sendPushNotification({
-      type: 'system',
-      title: 'Đăng nhập thành công! 🌟',
-      message: `Chào mừng trở lại, ${selected.name}! Bạn hiện đang ở cấp độ ${selected.tier.toUpperCase()}.`,
-      timestamp: 'Vừa xong',
-    });
+  const loginWithRealAccount = async (
+    email: string,
+    password: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await authApi.login({ email, password });
+      if (res?.data?.user) {
+        const mapped = authApi.mapApiUserToFrontend(res.data.user);
+        setUser(mapped);
+        sound.playSuccess();
+        notificationService.sendPushNotification({
+          type: 'system',
+          title: 'Đăng nhập thành công! 🌟',
+          message: `Chào mừng ${mapped.name}! Phiên đăng nhập 24h đã được kích hoạt.`,
+          timestamp: 'Vừa xong',
+        });
+        return { success: true };
+      }
+      return { success: false, error: 'Đăng nhập không thành công.' };
+    } catch (err: any) {
+      sound.playClick();
+      const errMsg = err?.message || 'Email hoặc mật khẩu không chính xác.';
+      notificationService.sendPushNotification({
+        type: 'system',
+        title: 'Đăng nhập thất bại ⚠️',
+        message: errMsg,
+        timestamp: 'Vừa xong',
+      });
+      return { success: false, error: errMsg };
+    }
+  };
+
+  const registerWithRealAccount = async (
+    email: string,
+    password: string,
+    name?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await authApi.register({ email, password, nickname: name });
+      if (res?.data?.user) {
+        const mapped = authApi.mapApiUserToFrontend(res.data.user);
+        setUser(mapped);
+        sound.playSuccess();
+        notificationService.sendPushNotification({
+          type: 'system',
+          title: 'Đăng ký thành công! 🎉',
+          message: `Tài khoản ${mapped.email} đã được lưu vào cơ sở dữ liệu. Tặng bạn 50 Credits!`,
+          timestamp: 'Vừa xong',
+        });
+        return { success: true };
+      }
+      return { success: false, error: 'Đăng ký không thành công.' };
+    } catch (err: any) {
+      sound.playClick();
+      const errMsg = err?.message || 'Không thể tạo tài khoản mới.';
+      notificationService.sendPushNotification({
+        type: 'system',
+        title: 'Đăng ký thất bại ⚠️',
+        message: errMsg,
+        timestamp: 'Vừa xong',
+      });
+      return { success: false, error: errMsg };
+    }
+  };
+
+  const loginWithGoogle = async (
+    googleEmail?: string,
+    idToken?: string,
+    name?: string,
+    avatarUrl?: string
+  ): Promise<{ success: boolean; isNewUser?: boolean; generatedPassword?: string }> => {
+    try {
+      const res = await authApi.loginWithGoogle({
+        googleEmail,
+        idToken,
+        nickname: name,
+        avatarUrl,
+      });
+
+      if (res?.data?.user) {
+        const mapped = authApi.mapApiUserToFrontend(res.data.user);
+        setUser(mapped);
+        sound.playSuccess();
+
+        if (res.data.isNewUser) {
+          notificationService.sendPushNotification({
+            type: 'system',
+            title: 'Tài khoản Google mới đã khởi tạo! 🎉',
+            message: `Mật khẩu đăng nhập ban đầu đã được gửi về email ${mapped.email}. Vui lòng kiểm tra hộp thư!`,
+            timestamp: 'Vừa xong',
+          });
+        } else {
+          notificationService.sendPushNotification({
+            type: 'system',
+            title: 'Đăng nhập Google thành công! 🌟',
+            message: `Chào mừng ${mapped.name} quay trở lại!`,
+            timestamp: 'Vừa xong',
+          });
+        }
+
+        return {
+          success: true,
+          isNewUser: res.data.isNewUser,
+          generatedPassword: res.data.generatedPassword,
+        };
+      }
+      return { success: false };
+    } catch (err: any) {
+      sound.playClick();
+      notificationService.sendPushNotification({
+        type: 'system',
+        title: 'Đăng nhập Google thất bại ⚠️',
+        message: err?.message || 'Không thể xác thực tài khoản Google.',
+        timestamp: 'Vừa xong',
+      });
+      return { success: false };
+    }
+  };
+
+  const loginAs = async (preset: 'admin' | 'user' | string) => {
+    const credMap: Record<string, { email: string; pass: string }> = {
+      admin: { email: 'admin@shanhai.studio', pass: 'AdminPassword123@' },
+      user: { email: 'user@shanhai.studio', pass: 'UserPassword123@' },
+      // Fallback
+      admin2: { email: 'admin@shanhai.studio', pass: 'AdminPassword123@' },
+      supreme: { email: 'admin@shanhai.studio', pass: 'AdminPassword123@' },
+      gold: { email: 'user@shanhai.studio', pass: 'UserPassword123@' },
+      free: { email: 'user@shanhai.studio', pass: 'UserPassword123@' },
+    };
+
+    const cred = credMap[preset] || credMap.user;
+    if (cred) {
+      await loginWithRealAccount(cred.email, cred.pass);
+    }
   };
 
   const loginWithCredentials = (email: string, name?: string) => {
-    const newUser: User = {
-      id: `user-${Date.now()}`,
-      name: name || email.split('@')[0],
-      email,
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
-      tier: 'gold',
-      credits: 100,
-      purchasedCourseIds: [],
-      wishlistCourseIds: [],
-      roleBadge: 'Gold Member (Tân thủ tặng 100 Credits)',
-      joinedDate: new Date().toISOString().split('T')[0],
-    };
-    setUser(newUser);
-    sound.playSuccess();
-    notificationService.sendPushNotification({
-      type: 'system',
-      title: 'Đăng nhập thành công!',
-      message: `Chào mừng bạn đến với 一帧山海! Tặng ngay 100 Credits trải nghiệm.`,
-      timestamp: 'Vừa xong',
+    loginWithRealAccount(email, 'UserPassword123@').then((success) => {
+      if (!success) {
+        registerWithRealAccount(email, 'UserPassword123@', name);
+      }
     });
   };
 
   const logout = () => {
+    authApi.logout().catch(() => {});
     setUser(null);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('shanhai_auth_user');
+      localStorage.removeItem('whale_access_token');
+      localStorage.removeItem('shanhai_access_token');
+      sessionStorage.removeItem('whale_access_token');
+    }
     sound.playClick();
     notificationService.sendPushNotification({
       type: 'system',
       title: 'Đã đăng xuất',
-      message: 'Bạn đã đăng xuất khỏi phiên làm việc an toàn.',
+      message: 'Bạn đã đăng xuất và xóa phiên làm việc an toàn.',
       timestamp: 'Vừa xong',
     });
   };
@@ -362,6 +538,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: !!user,
         loginAs,
         loginWithCredentials,
+        loginWithRealAccount,
+        registerWithRealAccount,
+        loginWithGoogle,
         logout,
         upgradeTier,
         addCredits,

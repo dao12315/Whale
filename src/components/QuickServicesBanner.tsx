@@ -2,12 +2,15 @@ import React from 'react';
 import { HelpCircle, Search, Video, Heart, ArrowUpRight } from 'lucide-react';
 import { sound } from '../services/sound';
 import { FaqModalTab } from './FaqGuideModal';
+import { useI18n } from '../i18n';
 
 interface QuickServicesBannerProps {
   onOpenService: (tab: FaqModalTab) => void;
 }
 
 export const QuickServicesBanner: React.FC<QuickServicesBannerProps> = ({ onOpenService }) => {
+  const { t } = useI18n();
+
   const cards: {
     tab: FaqModalTab;
     icon: React.ReactNode;
@@ -20,33 +23,33 @@ export const QuickServicesBanner: React.FC<QuickServicesBannerProps> = ({ onOpen
     {
       tab: 'faq',
       icon: <HelpCircle className="w-5 h-5 text-amber-400" />,
-      title: '常见问题',
-      subtitle: '平台使用常见疑问与新手解惑',
+      title: t('courses.quick_services_faq'),
+      subtitle: t('courses.quick_services_faq_desc'),
       bgColor: 'hover:bg-[#132733]',
       borderColor: 'border-[#1e3b4d]',
     },
     {
       tab: 'request',
       icon: <Search className="w-5 h-5 text-cyan-400" />,
-      title: '求教程',
-      subtitle: '没有找到想要的课程？提交需求我们来寻找',
-      badge: '众筹中',
+      title: t('courses.quick_services_vip'),
+      subtitle: t('courses.quick_services_vip_desc'),
+      badge: 'VIP',
       bgColor: 'hover:bg-[#112a33]',
       borderColor: 'border-[#1b3d4a]',
     },
     {
       tab: 'guide',
       icon: <Video className="w-5 h-5 text-emerald-400" />,
-      title: '网站教程',
-      subtitle: '解压说明、网盘下载与视频播放教学',
+      title: t('courses.quick_services_drive'),
+      subtitle: t('courses.quick_services_drive_desc'),
       bgColor: 'hover:bg-[#112a2b]',
       borderColor: 'border-[#1b3f3b]',
     },
     {
       tab: 'sponsor',
       icon: <Heart className="w-5 h-5 text-rose-400" />,
-      title: '赞助支持',
-      subtitle: '支持一帧山海持续运营与服务器维护',
+      title: t('courses.quick_services_support'),
+      subtitle: t('courses.quick_services_support_desc'),
       bgColor: 'hover:bg-[#2b1823]',
       borderColor: 'border-[#422233]',
     },

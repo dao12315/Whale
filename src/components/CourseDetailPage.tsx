@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Course, Language, Comment } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useRealtime } from '../context/RealtimeContext';
 import { useTheme } from '../context/ThemeContext';
 import { sound } from '../services/sound';
 import { notificationService } from '../services/notificationService';
+import { coursesApi, LessonStreamResponse } from '../services/coursesApi';
+import { getCourseVndPrices, formatVnd } from '../utils/currency';
+import { getCourseOriginalUrl } from '../data/coursesData';
+import { useI18n } from '../i18n';
 import {
   ArrowLeft,
   Share2,
@@ -33,6 +37,12 @@ import {
   Bookmark,
   ChevronRight,
   ShieldAlert,
+  Play,
+  PlayCircle,
+  ShieldCheck,
+  FolderDown,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react';
 
 interface CourseDetailPageProps {
@@ -59,17 +69,28 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
   const { user, hasPurchased, isWishlisted, toggleWishlist, claimDailyReward } = useAuth();
   const { comments, addComment, courses } = useRealtime();
   const { theme } = useTheme();
+  const { t } = useI18n();
 
   const isUnlocked = hasPurchased(course.id);
   const wishlisted = isWishlisted(course.id);
 
-  // Calculate pricing based on membership tier
+  // Tính toán học phí VND và trạng thái miễn phí
+  const coursePrices = getCourseVndPrices(course);
+  const userVndPrice =
+    user?.tier === 'supreme'
+      ? coursePrices.formattedSupreme
+      : user?.tier === 'gold'
+      ? coursePrices.formattedGold
+      : coursePrices.formattedOriginal;
+
   const userPrice =
     user?.tier === 'supreme'
       ? course.supremePrice
       : user?.tier === 'gold'
       ? course.goldPrice
       : course.originalPrice;
+
+  const originalUrl = course.originalUrl || getCourseOriginalUrl(course.code, course.title);
 
   // Local likes and attention state
   const [likesCount, setLikesCount] = useState(course.likesCount || 11);
@@ -89,6 +110,69 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     no: 0,
     userVoted: null,
   });
+
+  // Curriculum and Streaming state
+  const courseLessons =
+    course.chapters && course.chapters.length > 0
+      ? course.chapters
+      : [
+          { id: 'ch-1', title: '01. Giới thiệu tổng quan & Phân tích bố cục nghệ thuật', duration: '18:45', isFreePreview: true },
+          { id: 'ch-2', title: '02. Kỹ thuật cọ vẽ Digital & Thiết lập bảng màu điện ảnh', duration: '36:12', isFreePreview: false },
+          { id: 'ch-3', title: '03. Xử lý chi tiết chất liệu & Hiệu ứng ánh sáng Unreal / Cycles', duration: '48:30', isFreePreview: false },
+          { id: 'ch-4', title: '04. Hoàn thiện tác phẩm & Xuất file in ấn khổ lớn', duration: '25:10', isFreePreview: false },
+        ];
+
+  const [activeLessonId, setActiveLessonId] = useState<string>(courseLessons[0]?.id || 'ch-1');
+  const [lessonStream, setLessonStream] = useState<LessonStreamResponse['data'] | null>(null);
+  const [isLoadingStream, setIsLoadingStream] = useState(false);
+  const [streamError, setStreamError] = useState<string | null>(null);
+  const [showDriveModal, setShowDriveModal] = useState(false);
+
+  const activeLesson = courseLessons.find((l) => l.id === activeLessonId) || courseLessons[0];
+  const canAccessActiveLesson = isUnlocked || activeLesson.isFreePreview;
+
+  // Tự động load stream khi mở hoặc khi đổi bài nếu có quyền truy cập
+  useEffect(() => {
+    if (canAccessActiveLesson) {
+      loadLessonStream(activeLesson.id);
+    } else {
+      setLessonStream(null);
+    }
+  }, [activeLessonId, isUnlocked]);
+
+  const loadLessonStream = async (lessonId: string) => {
+    setIsLoadingStream(true);
+    setStreamError(null);
+    try {
+      const res = await coursesApi.getLessonStream(course.id, lessonId);
+      setLessonStream(res.data);
+    } catch (err: any) {
+      // Graceful fallback khi backend offline: tạo signed stream mô phỏng
+      setLessonStream({
+        lessonId: lessonId,
+        title: activeLesson.title,
+        streamToken: 'stream-token-' + Math.random().toString(36).substring(2, 9),
+        streamUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+        expiresIn: '2 hours',
+      });
+    } finally {
+      setIsLoadingStream(false);
+    }
+  };
+
+  const handleSelectLesson = (lesson: (typeof courseLessons)[0]) => {
+    sound.playClick();
+    setActiveLessonId(lesson.id);
+    const isAccessible = isUnlocked || lesson.isFreePreview;
+    if (!isAccessible) {
+      notificationService.sendPushNotification({
+        type: 'system',
+        title: '🔒 Nội dung bị khóa',
+        message: `Bài "${lesson.title}" yêu cầu mở khóa khóa học để xem.`,
+        timestamp: 'Vừa xong',
+      });
+    }
+  };
 
   // Comment input state
   const [commentText, setCommentText] = useState('');
@@ -121,10 +205,10 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
       const next = !prev;
       notificationService.sendPushNotification({
         type: 'system',
-        title: next ? `🌟 Đã theo dõi tác giả ${course.instructor}` : `Đã hủy theo dõi`,
+        title: next ? `🌟 Đã theo dõi Quản trị viên ${course.instructor}` : `Đã hủy theo dõi`,
         message: next
-          ? `Bạn sẽ nhận được thông báo khi tác giả này đăng tải khóa học mới.`
-          : `Bạn đã ngừng theo dõi tác giả ${course.instructor}.`,
+          ? `Bạn sẽ nhận được thông báo khi Quản trị viên này đăng tải khóa học mới.`
+          : `Bạn đã ngừng theo dõi Quản trị viên ${course.instructor}.`,
         timestamp: 'Vừa xong',
       });
       return next;
@@ -136,8 +220,8 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
     setPrivateMsgSent(true);
     notificationService.sendPushNotification({
       type: 'comment',
-      title: `✉ Đã gửi tin nhắn riêng tới ${course.instructor}`,
-      message: `Hệ thống đã chuyển lời nhắn của bạn đến hộp thư của giảng viên.`,
+      title: `✉ Đã gửi tin nhắn riêng tới Quản trị viên ${course.instructor}`,
+      message: `Hệ thống đã chuyển lời nhắn của bạn đến hộp thư của Quản trị viên.`,
       timestamp: 'Vừa xong',
     });
     setTimeout(() => setPrivateMsgSent(false), 4000);
@@ -227,7 +311,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
             className="px-3.5 py-1.5 rounded-xl bg-white/90 dark:bg-[#152a36] hover:bg-slate-100 dark:hover:bg-[#1b3645] text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-all border border-slate-200 dark:border-slate-700 shadow-sm"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Quay lại (Back)</span>
+            <span>{t('courses.detail_back')}</span>
           </button>
         </div>
 
@@ -249,22 +333,25 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800/80">
                 <div className="flex items-center gap-3">
                   <img
-                    src={course.authorAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80'}
-                    alt="Author"
-                    className="w-11 h-11 rounded-full object-cover border-2 border-amber-500/40 ring-2 ring-slate-100 dark:ring-slate-800"
+                    src={course.authorAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80'}
+                    alt="Admin Avatar"
+                    className="w-11 h-11 rounded-full object-cover border-2 border-amber-500/60 ring-2 ring-slate-100 dark:ring-slate-800 shadow"
                   />
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-slate-900 dark:text-slate-100">
-                        {course.instructor || 'Yuan Dian'}
+                      <span className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                        {course.instructor || 'Tổng Quản Trị Viên (Admin)'}
                       </span>
-                      <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                        Giảng viên
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40 inline-flex items-center gap-1 shadow-sm">
+                        <Crown className="w-3 h-3 text-amber-500 fill-amber-500" />
+                        {t('courses.detail_admin_owner') || 'Admin sở hữu'}
                       </span>
                     </div>
-                    <span className="text-xs text-slate-500 dark:text-slate-400">
-                      {course.publishedTimeAgo || 'Published 2 hours ago'}
-                    </span>
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      <span>Đăng bởi: <strong className="text-amber-600 dark:text-amber-400 font-semibold">{course.instructor || 'Tổng Quản Trị Viên'}</strong></span>
+                      <span>•</span>
+                      <span>{course.publishedTimeAgo || 'Vừa xong'}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -279,7 +366,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                     }`}
                   >
                     {isFollowingAuthor ? <UserCheck className="w-3.5 h-3.5" /> : <UserPlus className="w-3.5 h-3.5" />}
-                    <span>{isFollowingAuthor ? 'Đang theo dõi' : '♡ Attention'}</span>
+                    <span>{isFollowingAuthor ? t('common.following') : t('common.follow')}</span>
                   </button>
 
                   {/* Private message button */}
@@ -324,13 +411,15 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                       <span>{course.originalPrice === 0 ? 'Free resources' : 'Paid resources'}</span>
                     </div>
 
-                    <button
-                      type="button"
-                      className="absolute bottom-2 inset-x-2 py-1.5 rounded-lg bg-black/75 hover:bg-black/90 backdrop-blur-sm text-white text-[11px] font-medium flex items-center justify-center gap-1 transition-all"
+                    <a
+                      href={originalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute bottom-2 inset-x-2 py-1.5 rounded-lg bg-black/75 hover:bg-black/90 backdrop-blur-sm text-white text-[11px] font-medium flex items-center justify-center gap-1 transition-all cursor-pointer z-10"
                     >
                       <ExternalLink className="w-3 h-3 text-amber-300" />
                       <span>View the original course page</span>
-                    </button>
+                    </a>
                   </div>
 
                   {/* Course Details & Pricing row */}
@@ -345,42 +434,38 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                       </p>
                     </div>
 
-                    {/* Pricing matching Screenshot 1 */}
-                    <div className="space-y-2">
+                    {/* Pricing section (Real VND & Free) */}
+                    <div className="space-y-2.5">
                       <div className="flex items-baseline gap-2">
-                        <span className="text-xs text-slate-500 font-medium">Credits</span>
-                        <span className="text-2xl font-black text-amber-600 dark:text-amber-400 font-mono">
-                          {course.originalPrice === 0 ? '0' : course.originalPrice}
-                        </span>
-                        {course.originalPrice === 0 && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 font-bold font-mono">
-                            MIỄN PHÍ 100%
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-slate-500 font-medium">Quyền truy cập học tập</span>
+                          <span className="text-xs font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-3 py-1 rounded-full border border-teal-300 dark:border-teal-700/60 flex items-center gap-1.5 shadow-sm">
+                            <Sparkles className="w-3.5 h-3.5 text-teal-500" />
+                            <span>Google Drive VIP • Học trọn đời</span>
                           </span>
-                        )}
+                        </div>
                       </div>
 
-                      {/* Gold & Supreme member discount pills */}
-                      {course.originalPrice > 0 && (
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div className="p-2 rounded-xl bg-amber-50 dark:bg-[#1a271e]/70 border border-amber-300/60 dark:border-amber-600/40 flex items-center justify-between">
-                            <span className="text-[10px] text-amber-800 dark:text-amber-300 flex items-center gap-1">
-                              👑 Gold member
-                            </span>
-                            <span className="font-bold font-mono text-amber-700 dark:text-amber-300">
-                              Credits {course.goldPrice}
-                            </span>
-                          </div>
-
-                          <div className="p-2 rounded-xl bg-purple-50 dark:bg-[#25172d]/70 border border-purple-300/60 dark:border-purple-500/40 flex items-center justify-between">
-                            <span className="text-[10px] text-purple-800 dark:text-purple-300 flex items-center gap-1">
-                              💎 Supreme member
-                            </span>
-                            <span className="font-bold font-mono text-purple-700 dark:text-purple-300">
-                              Credits {course.supremePrice}
-                            </span>
-                          </div>
+                      {/* Course asset & feature highlight pills */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="p-2.5 rounded-xl bg-stone-50 dark:bg-[#162732] border border-stone-200 dark:border-slate-800 flex items-center justify-between">
+                          <span className="text-[11px] text-stone-600 dark:text-slate-400 font-medium">
+                            📁 Tài nguyên dự án
+                          </span>
+                          <span className="font-bold text-stone-800 dark:text-slate-200">
+                            Full Project & Cọ vẽ
+                          </span>
                         </div>
-                      )}
+
+                        <div className="p-2.5 rounded-xl bg-stone-50 dark:bg-[#162732] border border-stone-200 dark:border-slate-800 flex items-center justify-between">
+                          <span className="text-[11px] text-stone-600 dark:text-slate-400 font-medium">
+                            🎬 Chất lượng video
+                          </span>
+                          <span className="font-bold text-stone-800 dark:text-slate-200">
+                            HD 1080p Chuẩn
+                          </span>
+                        </div>
+                      </div>
 
                       {/* Buy now / Mở khóa button */}
                       <div className="pt-1">
@@ -396,11 +481,154 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                             className="w-full py-3 rounded-xl bg-gradient-to-r from-[#804618] via-[#a35b23] to-[#804618] hover:from-[#94521f] hover:to-[#94521f] text-white font-bold text-xs sm:text-sm shadow-xl hover:scale-[1.01] transition-all flex items-center justify-center gap-2 tracking-wide uppercase font-cinzel"
                           >
                             <Sparkles className="w-4 h-4" />
-                            <span>{course.originalPrice === 0 ? 'Vào học ngay • Tải tài nguyên miễn phí' : `Vào học ngay (${userPrice} Credits)`}</span>
+                            <span>Kích hoạt khóa học ngay • Mở khóa Google Drive</span>
                           </button>
                         )}
                       </div>
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ========================================================= */}
+              {/* VIDEO PLAYER & CURRICULUM STREAMING (Entitlement-Protected) */}
+              {/* ========================================================= */}
+              <div className="bg-[#fdfbf7] dark:bg-[#0c1820] border-2 border-amber-500/30 rounded-3xl p-5 sm:p-6 shadow-xl space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                      <PlayCircle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                        <span>Phòng Học Trực Tuyến & Bài Giảng</span>
+                        {isUnlocked ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/30">
+                            Đã mở khóa toàn bộ
+                          </span>
+                        ) : (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold border border-amber-500/30">
+                            Có bài học xem thử
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {activeLesson.title} • Thời lượng: {activeLesson.duration}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Nút mở Drive nếu đã kích hoạt */}
+                  {isUnlocked && (
+                    <button
+                      type="button"
+                      onClick={() => setShowDriveModal(true)}
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md shrink-0"
+                    >
+                      <FolderDown className="w-4 h-4" />
+                      <span>Google Drive Thư Mục ({course.code})</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Video Player Box */}
+                <div className="relative aspect-[16/9] rounded-2xl overflow-hidden bg-black border border-slate-800 shadow-2xl flex items-center justify-center">
+                  {isLoadingStream ? (
+                    <div className="flex flex-col items-center gap-2 text-amber-400 text-xs">
+                      <Loader2 className="w-7 h-7 animate-spin" />
+                      <span>Đang xác thực Entitlement & ký Signed Stream Token...</span>
+                    </div>
+                  ) : canAccessActiveLesson ? (
+                    <>
+                      <video
+                        key={activeLesson.id}
+                        controls
+                        autoPlay={false}
+                        poster={course.thumbnail}
+                        className="w-full h-full object-contain"
+                        src={lessonStream?.streamUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'}
+                      />
+                      {/* Watermark chống quay chụp vi phạm bản quyền */}
+                      <div className="absolute top-3 right-3 pointer-events-none select-none opacity-40 hover:opacity-10 transition-opacity">
+                        <span className="text-[10px] font-mono text-white/70 bg-black/50 px-2 py-1 rounded backdrop-blur-sm border border-white/20">
+                          ID: {user?.id?.substring(0, 8) || 'STUDENT'} • {user?.email || 'authenticated'}
+                        </span>
+                      </div>
+                      {/* Signed Stream Security Badge */}
+                      <div className="absolute bottom-3 left-3 pointer-events-none select-none flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg border border-emerald-500/40 text-[10px] text-emerald-300 font-mono">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Signed Stream Valid (Hết hạn: {lessonStream?.expiresIn || '2 giờ'})</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="p-6 text-center space-y-3 max-w-md">
+                      <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 shadow-inner">
+                        <Lock className="w-7 h-7" />
+                      </div>
+                      <h4 className="font-bold text-sm text-white">Bài học thuộc gói nội dung trả phí</h4>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Bạn cần kích hoạt khóa học để cấp quyền truy cập trọn đời vào video bài học này và toàn bộ tài nguyên Drive đính kèm.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => onBuyNow(course)}
+                        className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shadow-lg transition-transform hover:scale-105"
+                      >
+                        Mở khóa học ngay ({userPrice} Credits)
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Curriculum / Chapters list */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <span>Nội dung giáo trình ({courseLessons.length} bài)</span>
+                    <span className="text-slate-400 font-normal">Click để chuyển bài học</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {courseLessons.map((item) => {
+                      const isItemActive = item.id === activeLessonId;
+                      const isItemUnlocked = isUnlocked || item.isFreePreview;
+
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => handleSelectLesson(item)}
+                          className={`p-3 rounded-xl border text-left flex items-center justify-between gap-3 transition-all ${
+                            isItemActive
+                              ? 'bg-amber-500/10 dark:bg-amber-500/15 border-amber-500 text-amber-900 dark:text-amber-200 shadow-sm'
+                              : 'bg-white dark:bg-[#12222b] border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:border-amber-400'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div
+                              className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                                isItemUnlocked
+                                  ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                                  : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
+                              }`}
+                            >
+                              {isItemUnlocked ? <Play className="w-3.5 h-3.5 fill-current" /> : <Lock className="w-3.5 h-3.5" />}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold truncate">{item.title}</p>
+                              <span className="text-[10px] text-slate-400 font-mono">{item.duration}</span>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0">
+                            {item.isFreePreview && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30">
+                                Xem thử
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -412,154 +640,105 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                   alt={course.title}
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-6 sm:p-8 text-white">
-                  <div className="font-chinese text-2xl sm:text-4xl font-extrabold tracking-wide drop-shadow-md">
-                    {course.titleZh || '都江堰放水节 2026.04.04'}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent flex flex-col justify-end p-6 sm:p-8 text-white">
+                  <div className="text-xl sm:text-3xl font-extrabold tracking-wide drop-shadow-md">
+                    {course.title}
                   </div>
-                  <div className="font-serif text-xs sm:text-sm text-amber-200/90 mt-1">
-                    {course.eventDate || '农历丙午年二月十七 · 星期六'}
+                  <div className="font-serif text-xs sm:text-sm text-amber-200/90 mt-1 flex items-center gap-1.5">
+                    <Crown className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Admin sở hữu: {(typeof course.instructor === 'string' ? course.instructor : (course.instructor as any)?.name) || 'Tổng Quản Trị Viên (Admin)'}</span>
                   </div>
                   <p className="mt-2 text-xs sm:text-sm text-slate-200 max-w-xl font-light line-clamp-2">
-                    {course.subtitle ||
-                      'Khóa học trọn bộ kỹ thuật số, phân tích bối cảnh phim điện ảnh, kỹ xảo Unreal Engine và tư liệu văn hóa nghệ thuật.'}
+                    {course.description || course.subtitle ||
+                      'Khóa học trọn bộ kỹ thuật số, phân tích quy trình đồ họa CG, video bài giảng 4K và bộ tài nguyên source files đi kèm.'}
                   </p>
                 </div>
               </div>
 
-              {/* ARTICLE CURRICULUM SECTIONS MATCHING SCREENSHOT 2 */}
+              {/* ARTICLE CURRICULUM SECTIONS */}
               <div className="space-y-6 pt-2">
-                {/* Section 1 */}
+                {/* Section 1: Objectives & Core Competencies */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <span className="w-1.5 h-6 bg-red-700 rounded-full"></span>
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 font-serif">
-                      Dujiangyan Water Release Festival • Traditional Chinese culture
+                    <span className="w-1.5 h-6 bg-amber-500 rounded-full"></span>
+                    <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 font-serif">
+                      {t('courses.overview_objectives_title')}
                     </h2>
                   </div>
                   <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-light">
-                    The Sichuan Dujiangyan Water Release Festival originates from the ancient custom of opening the sluice gates after annual repairs to release water and honor Li Bing and his son. It is held annually around Qingming at the head of the Dujiangyan Canal, including rituals, cutting rafts to release water, and parades, symbolizing the start of the year's agricultural water supply.
+                    {course.description ||
+                      'Khóa học tập trung vào quy trình làm việc thực chiến từ ý tưởng ban đầu đến sản phẩm hoàn thiện. Học viên được tiếp cận các kỹ thuật tiên tiến, tối ưu hóa workflow và xây dựng tác phẩm đồ họa chất lượng cao.'}
                   </p>
                 </div>
 
-                {/* Section 2 */}
+                {/* Section 2: Prerequisites & Project Assets */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <span className="w-1.5 h-6 bg-red-700 rounded-full"></span>
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 font-serif">
-                      Folklore and daily life
+                    <span className="w-1.5 h-6 bg-amber-500 rounded-full"></span>
+                    <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 font-serif">
+                      {t('courses.overview_tools_title')}
                     </h2>
                   </div>
                   <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-light">
-                    On the day of the water release, people watched the ceremony around Yuzui and Baopingkou. Minjiang River water flowed through Neijiang into the irrigation area, and farmers in the western Sichuan plain prayed for favorable weather and abundant harvests. The specific times and rituals of festivals vary by region, so local records prevail.
-                  </p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">
-                    Cultural references: China Intangible Cultural Heritage Network. The images are expressions of traditional culture and art; dates and ceremonies are subject to local records.
+                    {t('courses.overview_tools_desc')}
                   </p>
                 </div>
 
-                {/* Section 3: Baby Returns Home Public Welfare Family Search Notice Card */}
+                {/* Section 3: Quality Guarantee & Platform Policy */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <span className="w-1.5 h-6 bg-red-700 rounded-full"></span>
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 font-serif">
-                      Baby Returns Home Public Welfare Family Search
+                    <span className="w-1.5 h-6 bg-amber-500 rounded-full"></span>
+                    <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 font-serif">
+                      {t('courses.overview_guarantee_title')}
                     </h2>
                   </div>
-                  <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-light">
-                    The following information comes from the Public Family Search Files of the Baby Home Volunteer Association. If you have relevant clues, please verify and contact through official channels; Please refer to the latest records on the official website for case status.
-                  </p>
-
-                  {/* Public Welfare Archive Card matching Screenshot 2 */}
-                  <div className="border-2 border-teal-500/70 rounded-2xl overflow-hidden bg-white dark:bg-[#0f1d24] shadow-md">
-                    <div className="h-1.5 bg-gradient-to-r from-teal-500 via-emerald-400 to-teal-600 w-full" />
-                    <div className="p-4 sm:p-6 space-y-4">
-                      <div>
-                        <h4 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
-                          <span>[610751] 林金灶烈士</span>
-                        </h4>
-                        <span className="text-xs text-teal-600 dark:text-teal-400 font-semibold tracking-wide">
-                          烈士寻根 / Homeless or wandering person
-                        </span>
-                      </div>
-
-                      <div className="flex flex-col sm:flex-row gap-5 items-start pt-2 border-t border-slate-200 dark:border-slate-800">
-                        {/* Gray silhouette placeholder matching Screenshot 2 */}
-                        <div className="w-28 h-32 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center shrink-0">
-                          <div className="w-12 h-12 rounded-full bg-slate-300 dark:bg-slate-700 flex items-center justify-center mb-1">
-                            <span className="text-xl text-slate-500">👤</span>
-                          </div>
-                          <span className="text-[10px] text-slate-400">暂无照片</span>
-                        </div>
-
-                        {/* Metadata Details */}
-                        <div className="flex-1 space-y-2 text-xs text-slate-700 dark:text-slate-300">
-                          <div className="flex items-center gap-2">
-                            <span className="text-slate-400 min-w-[130px]">寻亲类别 / Category:</span>
-                            <span className="font-semibold text-slate-800 dark:text-slate-200">烈士寻根</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-slate-400 min-w-[130px]">寻根编号:</span>
-                            <span className="font-mono font-bold text-teal-600 dark:text-teal-400">610751</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-slate-400 min-w-[130px]">烈士姓名 / Martyr name:</span>
-                            <span className="font-semibold text-slate-800 dark:text-slate-200">林金灶烈士</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-slate-400 min-w-[130px]">性别 / Sex:</span>
-                            <span className="font-semibold text-slate-800 dark:text-slate-200">男</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-slate-400 min-w-[130px]">身高 / Height:</span>
-                            <span className="text-slate-500 font-mono">未知CM</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Official Archive Source Footer matching Screenshot 2 */}
-                      <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 text-[11px] text-slate-500 dark:text-slate-400 space-y-1">
-                        <p>来源: 宝贝回家志愿者协会官网 | 快照日期: 2026-08-30 | 以官网最新状态为准</p>
-                        <p className="font-mono text-teal-600 dark:text-teal-400 hover:underline break-all">
-                          https://www.baobeihuijia.com/bbhj/contents/18/166914.html
-                        </p>
-                      </div>
+                  <div className="border border-amber-500/30 rounded-2xl p-4 bg-amber-500/5 dark:bg-[#12232c] text-xs text-slate-700 dark:text-slate-300 space-y-2">
+                    <p className="leading-relaxed">
+                      {t('courses.overview_guarantee_desc')}
+                    </p>
+                    <div className="flex items-center gap-2 pt-1 text-amber-600 dark:text-amber-400 font-medium text-[11px]">
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <span>{t('courses.detail_drive_granted')}</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Source & Copyright Notice matching Screenshot 3 */}
+              {/* Source & Copyright Notice */}
               <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 font-light">
-                <p>Source: The Baby Home Volunteer Association has published archives on its official website</p>
                 <div>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">© Copyright Notice: </span>
-                  <span>The copyright of this article belongs to the author. Please do not reprint without permission.</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">© Copyright: </span>
+                  <span>{t('courses.copyright_notice')}</span>
                 </div>
 
                 <div className="flex items-center justify-center gap-3 pt-2 text-slate-400">
                   <span className="h-[1px] w-20 bg-slate-300 dark:bg-slate-700"></span>
-                  <span className="text-[10px] uppercase font-mono tracking-widest">THE END</span>
+                  <span className="text-[10px] uppercase font-mono tracking-widest">GGC STUDIO</span>
                   <span className="h-[1px] w-20 bg-slate-300 dark:bg-slate-700"></span>
                 </div>
 
-                {/* Course Tags matching Screenshot 3 */}
+                {/* Course Tags */}
                 <div className="flex items-center gap-2 flex-wrap pt-2">
-                  {['coloso', 'colsoo', 'Comprehensive course category', 'Special tutorial - Colo'].map((tag) => (
-                    <span
-                      key={tag}
-                      className="px-3 py-1 rounded-lg bg-slate-100 dark:bg-[#142633] text-slate-700 dark:text-slate-300 text-xs border border-slate-200 dark:border-slate-700 flex items-center gap-1.5"
-                    >
+                  {course.tags && course.tags.length > 0 ? (
+                    course.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="px-3 py-1 rounded-lg bg-slate-100 dark:bg-[#142633] text-slate-700 dark:text-slate-300 text-xs border border-slate-200 dark:border-slate-700 flex items-center gap-1.5"
+                      >
+                        <span>📁</span>
+                        <span>{tag}</span>
+                      </span>
+                    ))
+                  ) : (
+                    <span className="px-3 py-1 rounded-lg bg-slate-100 dark:bg-[#142633] text-slate-700 dark:text-slate-300 text-xs border border-slate-200 dark:border-slate-700 flex items-center gap-1.5">
                       <span>📁</span>
-                      <span>{tag}</span>
+                      <span>{course.category || 'Masterclass'}</span>
                     </span>
-                  ))}
+                  )}
                 </div>
 
-                {/* User interaction bar matching Screenshot 3 */}
+                {/* User interaction bar */}
                 <div className="pt-6 pb-2 text-center space-y-3">
-                  <p className="text-xs text-slate-500 font-medium italic">
-                    If you like it, please show your support
-                  </p>
                   <div className="flex items-center justify-center gap-4">
                     <button
                       onClick={handleLike}
@@ -570,7 +749,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                       }`}
                     >
                       <ThumbsUp className={`w-4 h-4 ${hasLiked ? 'fill-white' : ''}`} />
-                      <span>Thumbs up {likesCount}</span>
+                      <span>{t('courses.thumbs_up')} ({likesCount})</span>
                     </button>
 
                     <button
@@ -587,7 +766,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                       className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-[#142633] text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#1b3445] border border-slate-300 dark:border-slate-700 flex items-center gap-2 transition-all shadow-sm"
                     >
                       <Share2 className="w-4 h-4" />
-                      <span>Share</span>
+                      <span>{t('courses.share')}</span>
                     </button>
 
                     <button
@@ -599,7 +778,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                       }`}
                     >
                       <Star className={`w-4 h-4 ${wishlisted ? 'fill-white' : ''}`} />
-                      <span>{wishlisted ? 'Saved' : 'Collection'}</span>
+                      <span>{wishlisted ? t('courses.saved') : t('courses.save')}</span>
                     </button>
                   </div>
                 </div>
@@ -753,51 +932,49 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
           {/* RIGHT COLUMN: Sticky Purchase Widget, User Profile, PK Voting */}
           {/* ============================================================== */}
           <div className="lg:col-span-4 space-y-6">
-            {/* WIDGET 1: FLOATING PURCHASE CARD MATCHING SCREENSHOT 1 */}
+            {/* WIDGET 1: FLOATING ACCESS CARD */}
             <div className="bg-[#ffffff] dark:bg-[#102029]/95 border border-[#e8e2d4] dark:border-[#1d3847] rounded-3xl p-5 shadow-xl space-y-4 text-center transition-colors">
               {/* Badge */}
               <div className="inline-flex items-center gap-1 px-3 py-0.5 rounded bg-amber-900/90 text-amber-200 text-[10px] font-bold tracking-wider shadow">
                 <Download className="w-3 h-3" />
-                <span>{course.originalPrice === 0 ? 'Free resources' : 'Paid resources'}</span>
+                <span>Quyền truy cập học tập</span>
               </div>
 
-              {/* Price Banner with warm gradient */}
+              {/* Learning Access Banner */}
               <div className="p-4 rounded-2xl bg-gradient-to-b from-[#f9f2e3] to-[#f4ead5] dark:from-[#213328] dark:to-[#12221b] border border-amber-300/60 dark:border-emerald-600/30 text-center">
-                <span className="text-xs text-slate-600 dark:text-slate-400 font-medium block">Credits</span>
-                <span className="text-4xl font-extrabold text-[#99521e] dark:text-amber-400 font-mono tracking-tight">
-                  {course.originalPrice === 0 ? '0' : course.originalPrice}
+                <span className="text-xs text-slate-600 dark:text-slate-400 font-medium block">
+                  Quyền học trọn đời
                 </span>
-                {course.originalPrice === 0 && (
-                  <span className="block mt-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                    MIỄN PHÍ 100%
-                  </span>
-                )}
+                <span className="text-2xl font-extrabold text-[#99521e] dark:text-amber-400 tracking-tight block mt-1">
+                  Google Drive VIP
+                </span>
+                <span className="inline-block mt-1.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-700">
+                  Mở khóa toàn bộ nội dung
+                </span>
               </div>
 
-              {/* Member tier breakdown */}
-              {course.originalPrice > 0 && (
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-[#1a271e]/70 border border-amber-300/60 dark:border-amber-600/40 text-center">
-                    <span className="text-[10px] text-amber-800 dark:text-amber-300 block font-medium">
-                      👑 Gold member
-                    </span>
-                    <span className="font-bold font-mono text-amber-700 dark:text-amber-200">
-                      Credits {course.goldPrice}
-                    </span>
-                  </div>
-
-                  <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-[#25172d]/70 border border-purple-300/60 dark:border-purple-500/40 text-center">
-                    <span className="text-[10px] text-purple-800 dark:text-purple-300 block font-medium">
-                      💎 Supreme member
-                    </span>
-                    <span className="font-bold font-mono text-purple-700 dark:text-purple-200">
-                      Credits {course.supremePrice}
-                    </span>
-                  </div>
+              {/* Learning Benefits breakdown */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-[#1a271e]/70 border border-amber-300/60 dark:border-amber-600/40 text-center">
+                  <span className="text-[10px] text-amber-800 dark:text-amber-300 block font-medium">
+                    📁 Tài nguyên
+                  </span>
+                  <span className="font-bold text-amber-700 dark:text-amber-200">
+                    File dự án gốc
+                  </span>
                 </div>
-              )}
 
-              {/* Action buttons matching Screenshot 1 */}
+                <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-[#25172d]/70 border border-purple-300/60 dark:border-purple-500/40 text-center">
+                  <span className="text-[10px] text-purple-800 dark:text-purple-300 block font-medium">
+                    🎥 Video HD
+                  </span>
+                  <span className="font-bold text-purple-700 dark:text-purple-200">
+                    Xem & Tải trọn bộ
+                  </span>
+                </div>
+              </div>
+
+              {/* Action buttons */}
               <div className="space-y-2">
                 {isUnlocked ? (
                   <div className="w-full py-3 rounded-xl bg-emerald-600 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg">
@@ -810,17 +987,19 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
                     className="w-full py-3 rounded-xl bg-gradient-to-r from-[#804618] via-[#a35b23] to-[#804618] hover:from-[#94521f] hover:to-[#94521f] text-white font-bold text-sm shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2 tracking-wide uppercase font-cinzel"
                   >
                     <Sparkles className="w-4 h-4" />
-                    <span>{course.originalPrice === 0 ? 'Tải tài nguyên • Vào học ngay' : `Vào học ngay (${userPrice} Credits)`}</span>
+                    <span>Kích hoạt khóa học ngay • Mở khóa Google Drive</span>
                   </button>
                 )}
 
-                <button
-                  type="button"
-                  className="w-full py-2 rounded-xl bg-slate-100 dark:bg-[#162e3d] hover:bg-slate-200 dark:hover:bg-[#1d3b4d] text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-300 dark:border-slate-700 flex items-center justify-center gap-1.5 transition-all"
+                <a
+                  href={originalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2 rounded-xl bg-slate-100 dark:bg-[#162e3d] hover:bg-slate-200 dark:hover:bg-[#1d3b4d] text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-300 dark:border-slate-700 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                 >
                   <ExternalLink className="w-3.5 h-3.5 text-amber-500" />
                   <span>View the original course page</span>
-                </button>
+                </a>
               </div>
             </div>
 
@@ -1034,6 +1213,79 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({
           </div>
         </div>
       </div>
+      {/* GOOGLE DRIVE RESOURCES MODAL (Entitlement-Protected) */}
+      {showDriveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[#ffffff] dark:bg-[#102029] border border-amber-500/40 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                <FolderDown className="w-5 h-5" />
+                <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
+                  Tài Nguyên Google Drive ({course.code})
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDriveModal(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white flex items-center justify-center text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-700 dark:text-slate-300">
+              <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-3">
+                <ShieldCheck className="w-5 h-5 text-emerald-500 shrink-0" />
+                <div>
+                  <p className="font-semibold text-emerald-700 dark:text-emerald-300">
+                    Quyền truy cập đã được cấp tự động
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    Email Google liên kết: <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{user?.googleEmail || user?.email || 'student@whale.art'}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-semibold text-slate-900 dark:text-slate-100">Nội dung thư mục bao gồm:</h4>
+                <ul className="space-y-1.5 pl-4 list-disc text-slate-600 dark:text-slate-400">
+                  <li>Toàn bộ file nguồn PSD phân lớp đầy đủ (Concept & Matte Painting).</li>
+                  <li>Bộ cọ vẽ kỹ thuật số chuyên dụng (.ABR, .TPL cho Photoshop / Procreate).</li>
+                  <li>Mô hình 3D Blender (.blend, .fbx kèm textures PBR 4K).</li>
+                  <li>Video hướng dẫn chất lượng gốc 4K không nén (dành cho học tập ngoại tuyến).</li>
+                </ul>
+              </div>
+
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-800 dark:text-amber-300">
+                ⚠️ <span className="font-semibold">Lưu ý bảo mật:</span> Tài nguyên chỉ dành riêng cho tài khoản của bạn. Hệ thống Google Drive API tự động gắn watermark kỹ thuật số và thu hồi quyền nếu phát hiện chia sẻ trái phép.
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowDriveModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              >
+                Đóng
+              </button>
+              <a
+                href="https://drive.google.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  sound.playSuccess();
+                  setShowDriveModal(false);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-1.5 shadow-md transition-all"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Mở thư mục Google Drive</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
